@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Departure Board — Prep Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0a0d12;
+    --case: #10141b;
+    --panel: #151a22;
+    --tile: #191f28;
+    --seam: rgba(0,0,0,0.55);
+    --amber: #ffb300;
+    --amber-dim: #6b4e00;
+    --green: #3ddc97;
+    --green-dim: #163329;
+    --red: #ff5c5c;
+    --text: #e8edf2;
+    --muted: #7c8794;
+    --border: #232a35;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);}
+  body{
+    font-family:'Inter',system-ui,-apple-system,sans-serif;
+    color:var(--text);
+    min-height:100vh;
+    padding:28px 16px 60px;
+  }
+  .wrap{max-width:920px;margin:0 auto;}
+
+  /* header */
+  .board-header{
+    text-align:center;
+    margin-bottom:28px;
+  }
+  .eyebrow{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.28em;
+    color:var(--amber);
+    text-transform:uppercase;
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Space Mono',monospace;
+    font-size:clamp(22px,5vw,34px);
+    margin:0 0 12px;
+    letter-spacing:0.02em;
+  }
+  .countdown{
+    display:inline-flex;
+    align-items:baseline;
+    gap:8px;
+    font-family:'Space Mono',monospace;
+    background:var(--case);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 16px;
+    font-size:13px;
+    color:var(--muted);
+  }
+  .countdown b{color:var(--amber);font-size:16px;}
+
+  /* identity toggle */
+  .identity-row{
+    display:flex;
+    justify-content:center;
+    gap:8px;
+    margin:22px 0 26px;
+  }
+  .identity-label{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    align-self:center;
+    margin-right:4px;
+  }
+  .id-btn{
+    font-family:'Space Mono',monospace;
+    font-size:13px;
+    background:var(--case);
+    color:var(--muted);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:7px 18px;
+    cursor:pointer;
+    transition:all .15s ease;
+  }
+  .id-btn:hover{border-color:var(--amber-dim);}
+  .id-btn.active{
+    background:var(--amber);
+    color:#1a1200;
+    border-color:var(--amber);
+    font-weight:700;
+  }
+
+  /* gates */
+  .gates{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:680px){
+    .gates{grid-template-columns:1fr;}
+  }
+  .gate{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:18px 18px 20px;
+    position:relative;
+    overflow:hidden;
+  }
+  .gate.locked{opacity:0.55;}
+  .gate-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    margin-bottom:14px;
+  }
+  .gate-name{
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .gate-name span{color:var(--text);font-weight:700;}
+  .view-only{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    border:1px solid var(--border);
+    padding:2px 8px;
+    border-radius:4px;
+  }
+
+  .streak-block{
+    display:flex;
+    align-items:flex-end;
+    gap:14px;
+    margin-bottom:18px;
+  }
+  .flap-digits{display:flex;gap:3px;}
+  .flap{
+    font-family:'Space Mono',monospace;
+    font-weight:700;
+    font-size:30px;
+    background:var(--tile);
+    color:var(--amber);
+    width:34px;
+    height:44px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:4px;
+    position:relative;
+    box-shadow:0 1px 0 rgba(255,255,255,0.04) inset;
+  }
+  .flap::after{
+    content:"";
+    position:absolute;
+    left:0;right:0;top:50%;
+    height:1px;
+    background:var(--seam);
+  }
+  .flap.updated{animation:flapPulse .5s ease;}
+  @keyframes flapPulse{
+    0%{transform:rotateX(0deg);}
+    40%{transform:rotateX(90deg);color:var(--green);}
+    100%{transform:rotateX(0deg);}
+  }
+  .streak-meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);line-height:1.6;}
+  .streak-meta b{color:var(--text);}
+
+  .task-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .task-tile{
+    background:var(--tile);
+    border:1px solid var(--border);
+    border-radius:7px;
+    padding:12px 10px;
+    cursor:pointer;
+    perspective:600px;
+    user-select:none;
+    position:relative;
+  }
+  .task-tile::after{
+    content:"";
+    position:absolute;
+    left:8px;right:8px;top:50%;
+    height:1px;
+    background:var(--seam);
+    pointer-events:none;
+  }
+  .gate.locked .task-tile{cursor:default;}
+  .task-inner{
+    transition:transform .45s cubic-bezier(.6,.1,.25,1);
+    transform-style:preserve-3d;
+    position:relative;
+    min-height:34px;
+  }
+  .task-tile.done .task-inner{transform:rotateY(180deg);}
+  .task-face{
+    backface-visibility:hidden;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .task-face.back{
+    position:absolute;
+    inset:0;
+    transform:rotateY(180deg);
+    justify-content:center;
+  }
+  .task-label{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    letter-spacing:0.06em;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+  .task-glyph{font-size:16px;color:var(--text);}
+  .task-tile.done{background:var(--green-dim);border-color:var(--green);}
+  .task-face.back .task-label{color:var(--green);}
+  .task-face.back .task-glyph{color:var(--green);}
+
+  .heatmap-label{
+    font-family:'Space Mono',monospace;
+    font-size:10px;
+    color:var(--muted);
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .heatmap{
+    display:grid;
+    grid-template-columns:repeat(15,1fr);
+    gap:4px;
+  }
+  .hcell{
+    aspect-ratio:1;
+    border-radius:2px;
+    background:var(--tile);
+    border:1px solid var(--border);
+  }
+  .hcell[data-lvl="1"]{background:var(--amber-dim);border-color:var(--amber-dim);}
+  .hcell[data-lvl="2"]{background:#8a6a1f;border-color:#8a6a1f;}
+  .hcell[data-lvl="3"]{background:#c98f1e;border-color:#c98f1e;}
+  .hcell[data-lvl="4"]{background:var(--green);border-color:var(--green);}
+
+  .todo-section{
+    margin-top:20px;
+    border-top:1px solid var(--border);
+    padding-top:16px;
+  }
+  .todo-form{
+    display:flex;
+    gap:6px;
+    margin-bottom:10px;
+  }
+  .todo-input{
+    flex:1;
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    background:var(--tile);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:6px;
+    padding:8px 10px;
+  }
+  .todo-input:focus{outline:none;border-color:var(--amber-dim);}
+  .todo-input::placeholder{color:var(--muted);}
+  .todo-add-btn{
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    background:var(--amber);
+    color:#1a1200;
+    border:none;
+    border-radius:6px;
+    padding:0 14px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  .todo-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .todo-item{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    background:var(--tile);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 10px;
+  }
+  .todo-item.done{background:var(--green-dim);border-color:var(--green);}
+  .todo-check{
+    width:16px;height:16px;
+    flex:none;
+    border-radius:4px;
+    border:1px solid var(--muted);
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;
+    font-size:11px;
+    color:var(--green);
+  }
+  .todo-item.done .todo-check{border-color:var(--green);background:var(--green);color:#0a1f16;}
+  .todo-text{
+    flex:1;
+    font-size:13px;
+    line-height:1.4;
+    word-break:break-word;
+  }
+  .todo-item.done .todo-text{color:var(--muted);text-decoration:line-through;}
+  .todo-del{
+    flex:none;
+    background:none;
+    border:none;
+    color:var(--muted);
+    cursor:pointer;
+    font-size:15px;
+    line-height:1;
+    padding:2px 4px;
+  }
+  .todo-del:hover{color:var(--red);}
+  .todo-empty{
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+    padding:6px 2px;
+  }
+  .gate.locked .todo-form,
+  .gate.locked .todo-del,
+  .gate.locked .todo-check{
+    pointer-events:none;
+    opacity:0.5;
+  }
+
+  .footnote{
+    text-align:center;
+    margin-top:26px;
+    font-family:'Space Mono',monospace;
+    font-size:11px;
+    color:var(--muted);
+  }
+  .status-msg{
+    text-align:center;
+    font-family:'Space Mono',monospace;
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:16px;
+    min-height:16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="board-header">
+    <div class="eyebrow">Now boarding · Masters Abroad</div>
+    <h1>PREP DEPARTURE BOARD</h1>
+    <div class="countdown" id="countdown">Loading schedule…</div>
+  </div>
+
+  <div class="status-msg" id="statusMsg">Loading board…</div>
+
+  <div class="identity-row">
+    <span class="identity-label">Editing as</span>
+    <button class="id-btn active" data-id="Rushil" id="btnRushil">Rushil</button>
+    <button class="id-btn" data-id="Hitesh" id="btnHitesh">Hitesh</button>
+  </div>
+
+  <div class="gates" id="gates"></div>
+
+  <div class="footnote">Tap a tile to flip it once today's task is done · add one-off items in To-do · shared board, both lanes visible to each other</div>
+</div>
+
+<script>
+const TASKS = [
+  {key:'dsa', label:'DSA', glyph:'{ }'},
+  {key:'german', label:'German', glyph:'DE'},
+  {key:'ielts', label:'IELTS', glyph:'AA'},
+  {key:'college', label:'College', glyph:'✓'}
+];
+const PEOPLE = ['Rushil','Hitesh'];
+let activeIdentity = 'Rushil';
+let data = { Rushil:{}, Hitesh:{} }; // person -> { 'YYYY-MM-DD': {dsa:bool,...} }
+let todos = { Rushil:[], Hitesh:[] }; // person -> [{id, text, done}]
+
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+function fmtDate(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function todayStr(){ return fmtDate(new Date()); }
+
+function isComplete(dayObj){
+  if(!dayObj) return false;
+  return TASKS.every(t => !!dayObj[t.key]);
+}
+
+function computeCurrentStreak(entries){
+  let streak = 0;
+  let cursor = new Date();
+  if(!isComplete(entries[fmtDate(cursor)])){
+    cursor.setDate(cursor.getDate()-1);
+  }
+  while(true){
+    const key = fmtDate(cursor);
+    if(isComplete(entries[key])){
+      streak++;
+      cursor.setDate(cursor.getDate()-1);
+    } else break;
+  }
+  return streak;
+}
+
+function computeBestStreak(entries){
+  const dates = Object.keys(entries).filter(k => isComplete(entries[k])).sort();
+  let best = 0, run = 0, prev = null;
+  for(const d of dates){
+    if(prev){
+      const prevDate = new Date(prev);
+      const curDate = new Date(d);
+      const diff = Math.round((curDate - prevDate)/86400000);
+      run = diff === 1 ? run + 1 : 1;
+    } else {
+      run = 1;
+    }
+    best = Math.max(best, run);
+    prev = d;
+  }
+  return best;
+}
+
+function last15Days(){
+  const arr = [];
+  const d = new Date();
+  for(let i=14;i>=0;i--){
+    const day = new Date(d);
+    day.setDate(day.getDate()-i);
+    arr.push(fmtDate(day));
+  }
+  return arr;
+}
+
+function levelFor(dayObj){
+  if(!dayObj) return 0;
+  const count = TASKS.filter(t => dayObj[t.key]).length;
+  return count; // 0-4
+}
+
+async function loadAll(){
+  for(const person of PEOPLE){
+    try{
+      const res = await window.storage.get('entries:'+person, true);
+      data[person] = res && res.value ? JSON.parse(res.value) : {};
+    }catch(e){
+      data[person] = {};
+    }
+    try{
+      const tres = await window.storage.get('todos:'+person, true);
+      todos[person] = tres && tres.value ? JSON.parse(tres.value) : [];
+    }catch(e){
+      todos[person] = [];
+    }
+  }
+}
+
+async function saveTodos(person){
+  try{
+    await window.storage.set('todos:'+person, JSON.stringify(todos[person]), true);
+  }catch(e){
+    console.error('Storage error', e);
+    document.getElementById('statusMsg').textContent = "Couldn't save — check connection and try again.";
+    setTimeout(()=>{ document.getElementById('statusMsg').textContent=''; }, 3000);
+  }
+}
+
+async function saveEntries(person){
+  try{
+    await window.storage.set('entries:'+person, JSON.stringify(data[person]), true);
+  }catch(e){
+    console.error('Storage error', e);
+    document.getElementById('statusMsg').textContent = "Couldn't save — check connection and try again.";
+    setTimeout(()=>{ document.getElementById('statusMsg').textContent=''; }, 3000);
+  }
+}
+
+function renderCountdown(){
+  const target = new Date('2028-05-31T00:00:00');
+  const now = new Date();
+  const diffDays = Math.max(0, Math.ceil((target-now)/86400000));
+  document.getElementById('countdown').innerHTML =
+    '<b>'+diffDays+'</b>&nbsp;days to TUM Winter 2028 application deadline';
+}
+
+function renderGate(person){
+  const entries = data[person];
+  const today = todayStr();
+  const todayEntry = entries[today] || {};
+  const streak = computeCurrentStreak(entries);
+  const best = computeBestStreak(entries);
+  const isActive = person === activeIdentity;
+  const digits = String(streak).padStart(2,'0').split('');
+
+  const taskTiles = TASKS.map(t => {
+    const done = !!todayEntry[t.key];
+    return `
+      <div class="task-tile ${done?'done':''}" data-task="${t.key}" data-person="${person}">
+        <div class="task-inner">
+          <div class="task-face front">
+            <div class="task-glyph">${t.glyph}</div>
+            <div class="task-label">${t.label}</div>
+          </div>
+          <div class="task-face back">
+            <div class="task-glyph">✓</div>
+            <div class="task-label">${t.label}</div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  const days = last15Days();
+  const heatCells = days.map(d => {
+    const lvl = levelFor(entries[d]);
+    return `<div class="hcell" data-lvl="${lvl}" title="${d}"></div>`;
+  }).join('');
+
+  const list = todos[person] || [];
+  const todoItems = list.length ? list.map(item => `
+      <div class="todo-item ${item.done?'done':''}" data-id="${item.id}" data-person="${person}">
+        <div class="todo-check" data-action="toggle">${item.done?'✓':''}</div>
+        <div class="todo-text">${escapeHtml(item.text)}</div>
+        <button class="todo-del" data-action="delete" aria-label="Delete task">×</button>
+      </div>`).join('') : `<div class="todo-empty">No extra tasks yet — add one below.</div>`;
+
+  return `
+    <div class="gate ${isActive?'':'locked'}" data-person="${person}">
+      <div class="gate-top">
+        <div class="gate-name">Gate · <span>${person}</span></div>
+        ${isActive ? '' : '<div class="view-only">view only</div>'}
+      </div>
+      <div class="streak-block">
+        <div class="flap-digits" id="flapDigits-${person}">
+          <div class="flap">${digits[0]}</div>
+          <div class="flap">${digits[1]}</div>
+        </div>
+        <div class="streak-meta">day streak<br><b>best: ${best}</b></div>
+      </div>
+      <div class="task-grid">${taskTiles}</div>
+      <div class="heatmap-label">Last 15 days</div>
+      <div class="heatmap">${heatCells}</div>
+      <div class="todo-section">
+        <div class="heatmap-label">To-do</div>
+        <form class="todo-form" data-person="${person}">
+          <input class="todo-input" type="text" placeholder="Add a task…" maxlength="120" ${isActive?'':'disabled'}>
+          <button type="submit" class="todo-add-btn">Add</button>
+        </form>
+        <div class="todo-list">${todoItems}</div>
+      </div>
+    </div>`;
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderAll(){
+  document.getElementById('gates').innerHTML = PEOPLE.map(renderGate).join('');
+  document.querySelectorAll('.id-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.id === activeIdentity);
+  });
+  attachHandlers();
+}
+
+function attachHandlers(){
+  document.querySelectorAll('.todo-form').forEach(form=>{
+    form.addEventListener('submit', async (e)=>{
+      e.preventDefault();
+      const person = form.dataset.person;
+      if(person !== activeIdentity) return;
+      const input = form.querySelector('.todo-input');
+      const text = input.value.trim();
+      if(!text) return;
+      if(!todos[person]) todos[person] = [];
+      todos[person].push({ id: Date.now()+'-'+Math.random().toString(36).slice(2,7), text, done:false });
+      await saveTodos(person);
+      renderAll();
+    });
+  });
+
+  document.querySelectorAll('.todo-item').forEach(item=>{
+    const person = item.dataset.person;
+    const id = item.dataset.id;
+    const checkEl = item.querySelector('[data-action="toggle"]');
+    const delEl = item.querySelector('[data-action="delete"]');
+    if(checkEl){
+      checkEl.addEventListener('click', async ()=>{
+        if(person !== activeIdentity) return;
+        const t = (todos[person]||[]).find(x=>x.id===id);
+        if(!t) return;
+        t.done = !t.done;
+        await saveTodos(person);
+        renderAll();
+      });
+    }
+    if(delEl){
+      delEl.addEventListener('click', async ()=>{
+        if(person !== activeIdentity) return;
+        todos[person] = (todos[person]||[]).filter(x=>x.id!==id);
+        await saveTodos(person);
+        renderAll();
+      });
+    }
+  });
+
+  document.querySelectorAll('.task-tile').forEach(tile=>{
+    tile.addEventListener('click', async ()=>{
+      const person = tile.dataset.person;
+      if(person !== activeIdentity) return;
+      const task = tile.dataset.task;
+      const today = todayStr();
+      if(!data[person][today]) data[person][today] = {};
+      data[person][today][task] = !data[person][today][task];
+      await saveEntries(person);
+      renderAll();
+      const flapWrap = document.getElementById('flapDigits-'+person);
+      if(flapWrap){
+        flapWrap.querySelectorAll('.flap').forEach(f=>{
+          f.classList.add('updated');
+          setTimeout(()=>f.classList.remove('updated'), 500);
+        });
+      }
+    });
+  });
+}
+
+document.getElementById('btnRushil').addEventListener('click', ()=>{
+  activeIdentity = 'Rushil';
+  renderAll();
+});
+document.getElementById('btnHitesh').addEventListener('click', ()=>{
+  activeIdentity = 'Hitesh';
+  renderAll();
+});
+
+(async function init(){
+  renderCountdown();
+  await loadAll();
+  document.getElementById('statusMsg').textContent = '';
+  renderAll();
+})();
+</script>
+</body>
+</html>
