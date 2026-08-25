@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Note, User } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { Lock, Share2, Plus, Trash2, Edit2, BookOpen, Search, X } from "lucide-react";
+import { Lock, Share2, Plus, Trash2, Edit2, BookOpen, Search, X, Pin } from "lucide-react";
 
 interface NotesSectionProps {
   notes: Note[];
@@ -75,12 +75,16 @@ export function NotesSection({ notes, users, currentUser, onRefresh }: NotesSect
     const base = filter === "shared"
       ? notes.filter((n) => n.is_shared)
       : notes.filter((n) => n.user_id === currentUser.id);
-    if (!search.trim()) return base;
-    const q = search.toLowerCase();
-    return base.filter((n) =>
-      n.content.toLowerCase().includes(q) ||
-      (getUser(n.user_id)?.username || "").toLowerCase().includes(q)
+    const searched = !search.trim() ? base : base.filter((n) =>
+      n.content.toLowerCase().includes(search.toLowerCase()) ||
+      (getUser(n.user_id)?.username || "").toLowerCase().includes(search.toLowerCase())
     );
+    // pinned notes always float to top
+    return [...searched].sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return  1;
+      return 0;
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, notes, currentUser.id, search]);
 
@@ -104,6 +108,11 @@ export function NotesSection({ notes, users, currentUser, onRefresh }: NotesSect
 
   const handleDelete = async (id: string) => {
     await supabase.from("notes").delete().eq("id", id);
+    onRefresh();
+  };
+
+  const handlePin = async (id: string, currentPin: boolean) => {
+    await supabase.from("notes").update({ is_pinned: !currentPin }).eq("id", id);
     onRefresh();
   };
 
@@ -249,6 +258,10 @@ export function NotesSection({ notes, users, currentUser, onRefresh }: NotesSect
                         }}>
                         {note.is_shared ? "Shared" : "Private"}
                       </span>
+                      {note.is_pinned && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
+                          style={{ background: "#1a1500", color: "#f5c518" }}>📌 Pinned</span>
+                      )}
                     </div>
                     <span className="text-[10px]" style={{ color: "#444" }}>
                       {new Date(note.created_at).toLocaleDateString()}
@@ -272,6 +285,14 @@ export function NotesSection({ notes, users, currentUser, onRefresh }: NotesSect
 
                   {isOwner && !isEditing && (
                     <div className="flex gap-2 justify-end pt-1" style={{ borderTop: "1px solid #1a1a1a" }}>
+                      {note.is_shared && (
+                        <button onClick={() => handlePin(note.id, !!note.is_pinned)}
+                          className="btn-ghost p-1.5" title={note.is_pinned ? "Unpin" : "Pin to top"}>
+                          <Pin className="w-3.5 h-3.5"
+                            style={{ color: note.is_pinned ? "#f5c518" : "#555",
+                              fill: note.is_pinned ? "#f5c518" : "none" }} />
+                        </button>
+                      )}
                       <button onClick={() => { setEditId(note.id); setEditContent(note.content); }} className="btn-ghost p-1.5">
                         <Edit2 className="w-3.5 h-3.5" style={{ color: "#555" }} />
                       </button>

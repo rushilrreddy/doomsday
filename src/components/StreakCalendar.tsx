@@ -2,13 +2,14 @@
 
 import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { Task, RoutineLog, DailyCheckin, Streak, User } from "@/lib/types";
+import { Task, RoutineLog, DailyCheckin, Streak, User, StudyLog } from "@/lib/types";
 
 interface StreakCalendarProps {
   users: User[];
   tasks: Task[];
   routineLogs: RoutineLog[];
   checkins: DailyCheckin[];
+  studyLogs?: StudyLog[];
   streaks: Streak[];
   currentUser: User;
 }
@@ -21,12 +22,21 @@ const USER_COLORS: Record<string, string> = {
 const CREW = ["rushil", "alan", "kevin"];
 
 /** Build a set of active date strings for a given user */
-function buildActivitySet(userId: string, tasks: Task[], routineLogs: RoutineLog[], checkins: DailyCheckin[]): Map<string, number> {
+function buildActivitySet(
+  userId: string,
+  tasks: Task[],
+  routineLogs: RoutineLog[],
+  checkins: DailyCheckin[],
+  studyLogs: StudyLog[] = [],
+  streak?: Streak
+): Map<string, number> {
   const map = new Map<string, number>();
   const add = (date: string) => map.set(date, (map.get(date) || 0) + 1);
   tasks.filter((t) => t.user_id === userId && t.is_done).forEach((t) => add(t.task_date));
   routineLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));
   checkins.filter((c) => c.user_id === userId).forEach((c) => add(c.checkin_date));
+  studyLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));
+  (streak?.frozen_dates || []).forEach((d) => add(d));
   return map;
 }
 
@@ -39,7 +49,7 @@ function getLastNDays(n: number): string[] {
   });
 }
 
-export function StreakCalendar({ users, tasks, routineLogs, checkins, streaks, currentUser }: StreakCalendarProps) {
+export function StreakCalendar({ users, tasks, routineLogs, checkins, studyLogs = [], streaks, currentUser }: StreakCalendarProps) {
   const [selected, setSelected] = useState(currentUser.username.toLowerCase());
   const color = USER_COLORS[selected] || "#22c55e";
 
@@ -51,8 +61,8 @@ export function StreakCalendar({ users, tasks, routineLogs, checkins, streaks, c
   const todayStr = new Date().toISOString().split("T")[0];
 
   const activityMap = useMemo(
-    () => selectedUser ? buildActivitySet(selectedUser.id, tasks, routineLogs, checkins) : new Map(),
-    [selectedUser, tasks, routineLogs, checkins]
+    () => selectedUser ? buildActivitySet(selectedUser.id, tasks, routineLogs, checkins, studyLogs, streak) : new Map(),
+    [selectedUser, tasks, routineLogs, checkins, studyLogs, streak]
   );
 
   // Group by week (7 days per column, starting Monday)

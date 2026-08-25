@@ -5,9 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { StudyLog, User } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import {
-  GraduationCap, Code2, BookOpen, Brain,
+  GraduationCap,
   Plus, X, Eye, EyeOff, Flame, Trophy,
 } from "lucide-react";
+
 
 // ── constants ──────────────────────────────────────────────────────────────
 

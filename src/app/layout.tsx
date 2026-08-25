@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./amoled.css";
 import { RealtimeProvider } from "@/components/RealtimeProvider";
 
 export const metadata: Metadata = {

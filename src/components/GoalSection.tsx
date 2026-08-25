@@ -84,6 +84,11 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
   const [sheet, setSheet] = useState<Sheet>("none");
   const [showHistory, setShowHistory] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [proofGoalId, setProofGoalId] = useState<string | null>(null);
+  const [proofNote, setProofNote] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofLoading, setProofLoading] = useState(false);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
 
   // Create fields
   const [title, setTitle] = useState("");
@@ -167,16 +172,46 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
   };
 
   const handleStatus = async (id: string, status: "achieved" | "failed") => {
-    await supabase.from("goals").update({
-      status,
-      winner_id: status === "achieved" ? currentUser.id : null,
-    }).eq("id", id);
+    if (status === "achieved") {
+      // open proof modal first
+      setProofGoalId(id); setProofNote(""); setProofFile(null); setProofPreview(null);
+      return;
+    }
+    await supabase.from("goals").update({ status: "failed", winner_id: null }).eq("id", id);
     await supabase.from("activity_feed").insert([{
       user_id: currentUser.id, type: "goal_completed",
-      content: `Challenge marked ${status.toUpperCase()}! ${status === "achieved" ? "🏆" : "💀"}`,
+      content: `Challenge marked FAILED! 💀`,
     }]);
-    setSheet("none");
-    onRefresh();
+    setSheet("none"); onRefresh();
+  };
+
+  const handleProofSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proofGoalId) return;
+    setProofLoading(true);
+    try {
+      let proofUrl: string | null = null;
+      if (proofFile) {
+        const ext  = proofFile.name.split(".").pop();
+        const path = `${proofGoalId}/${Date.now()}.${ext}`;
+        const { error } = await supabase.storage.from("goal-proofs").upload(path, proofFile, { upsert: true });
+        if (!error) {
+          const { data: urlData } = supabase.storage.from("goal-proofs").getPublicUrl(path);
+          proofUrl = urlData.publicUrl;
+        }
+      }
+      await supabase.from("goals").update({
+        status: "achieved",
+        winner_id: currentUser.id,
+        proof_url:  proofUrl,
+        proof_note: proofNote.trim() || null,
+      }).eq("id", proofGoalId);
+      await supabase.from("activity_feed").insert([{
+        user_id: currentUser.id, type: "goal_completed",
+        content: `🏆 ${currentUser.username} marked the challenge ACHIEVED! ${proofNote.trim() ? `"${proofNote.trim()}"` : ""}`,
+      }]);
+      setProofGoalId(null); setSheet("none"); onRefresh();
+    } finally { setProofLoading(false); }
   };
 
   const close = () => setSheet("none");
@@ -347,24 +382,41 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
             {past.length === 0 ? (
               <p className="text-xs text-center py-4" style={{ color: "#444" }}>No past challenges yet.</p>
             ) : past.map((g) => (
-              <div key={g.id} className="card p-3.5 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-bold truncate" style={{ color: "#f0f0f0" }}>{g.title}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "#555" }}>
-                    {g.start_date
-                      ? `${new Date(g.start_date).toLocaleDateString("en", { month: "short", day: "numeric" })} → `
-                      : ""}
-                    {new Date(g.target_date).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
-                  </p>
+              <div key={g.id} className="card p-3.5 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate" style={{ color: "#f0f0f0" }}>{g.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "#555" }}>
+                      {g.start_date
+                        ? `${new Date(g.start_date).toLocaleDateString("en", { month: "short", day: "numeric" })} → `
+                        : ""}
+                      {new Date(g.target_date).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+                  <span style={{
+                    background: g.status === "achieved" ? "#0d1a10" : "#1a0d0d",
+                    color: g.status === "achieved" ? "#22c55e" : "#ef4444",
+                    border: `1px solid ${g.status === "achieved" ? "#22c55e20" : "#ef444420"}`,
+                    padding: "3px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+                  }}>
+                    {g.status}
+                  </span>
                 </div>
-                <span style={{
-                  background: g.status === "achieved" ? "#0d1a10" : "#1a0d0d",
-                  color: g.status === "achieved" ? "#22c55e" : "#ef4444",
-                  border: `1px solid ${g.status === "achieved" ? "#22c55e20" : "#ef444420"}`,
-                  padding: "3px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
-                }}>
-                  {g.status}
-                </span>
+                {(g.proof_note || g.proof_url) && (
+                  <div className="pt-2 border-t border-[#202020] space-y-2">
+                    {g.proof_note && (
+                      <p className="text-xs italic" style={{ color: "#aaa" }}>
+                        &ldquo;{g.proof_note}&rdquo;
+                      </p>
+                    )}
+                    {g.proof_url && (
+                      <div className="relative rounded-xl overflow-hidden max-h-48 border border-[#2a2a2a]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={g.proof_url} alt="Challenge proof" className="w-full h-auto object-cover" />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </motion.div>
@@ -492,6 +544,85 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── Proof upload modal ── */}
+      <AnimatePresence>
+        {proofGoalId && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-end justify-center"
+            style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
+            onClick={() => setProofGoalId(null)}>
+            <motion.form
+              onSubmit={handleProofSubmit}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              transition={{ type: "spring", stiffness: 380, damping: 36 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-t-3xl p-5 space-y-4"
+              style={{ background: "#161616", border: "1px solid #252525", borderBottom: "none",
+                paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" }}>
+
+              <div className="w-8 h-1 rounded-full mx-auto" style={{ background: "#2a2a2a" }} />
+              <div className="flex items-center justify-between">
+                <h3 className="font-black text-base" style={{ color: "#f0f0f0" }}>🏆 Mark as Achieved</h3>
+                <button type="button" onClick={() => setProofGoalId(null)}>
+                  <X className="w-4 h-4" style={{ color: "#555" }} />
+                </button>
+              </div>
+
+              {/* Win note */}
+              <div>
+                <p className="text-[11px] font-semibold mb-1.5" style={{ color: "#666" }}>Win note (optional)</p>
+                <textarea rows={2} value={proofNote} onChange={(e) => setProofNote(e.target.value)}
+                  placeholder='e.g. "Hit 200 LeetCode problems, feeling unstoppable 🔥"'
+                  className="input-field" style={{ resize: "none", width: "100%" }} />
+              </div>
+
+              {/* Proof photo */}
+              <div>
+                <p className="text-[11px] font-semibold mb-1.5" style={{ color: "#666" }}>Proof photo (optional)</p>
+                {proofPreview ? (
+                  <div className="relative rounded-2xl overflow-hidden" style={{ height: 160 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={proofPreview} alt="proof" className="w-full h-full object-cover" />
+                    <button type="button"
+                      onClick={() => { setProofFile(null); setProofPreview(null); }}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(0,0,0,0.7)" }}>
+                      <X className="w-3.5 h-3.5" style={{ color: "#f0f0f0" }} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-2 rounded-2xl cursor-pointer py-8"
+                    style={{ border: "1.5px dashed #252525", background: "#111" }}>
+                    <span style={{ fontSize: 28 }}>📸</span>
+                    <p className="text-xs font-semibold" style={{ color: "#555" }}>Tap to attach screenshot or photo</p>
+                    <input type="file" accept="image/*" className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        setProofFile(f);
+                        setProofPreview(URL.createObjectURL(f));
+                      }} />
+                  </label>
+                )}
+              </div>
+
+              <button type="submit" disabled={proofLoading}
+                className="btn-primary w-full text-sm"
+                style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)" }}>
+                {proofLoading ? "Saving…" : "🏆 Confirm Achievement"}
+              </button>
+
+              <button type="button" onClick={() => setProofGoalId(null)}
+                className="w-full text-xs py-2" style={{ color: "#555" }}>
+                Cancel
+              </button>
+            </motion.form>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+

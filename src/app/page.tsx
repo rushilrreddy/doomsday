@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog } from "@/lib/types";
+import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog, FeedReaction, Challenge } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { Navigation, TabType } from "@/components/Navigation";
 import { GoalSection } from "@/components/GoalSection";
@@ -25,6 +25,15 @@ import { StudyTracker } from "@/components/StudyTracker";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { PushNotifications } from "@/components/PushNotifications";
 import { StudyHeatmap } from "@/components/StudyHeatmap";
+import { AchievementsPanel } from "@/components/AchievementsPanel";
+import { CheckinReminder } from "@/components/CheckinReminder";
+import { DataExport } from "@/components/DataExport";
+import { ChallengesPanel } from "@/components/ChallengesPanel";
+import { WeeklyReport } from "@/components/WeeklyReport";
+import { XPLevelCard, calculateUserXP } from "@/components/XPLevelCard";
+import { RecordsLeaderboard } from "@/components/RecordsLeaderboard";
+import { CrewRankHistory } from "@/components/CrewRankHistory";
+import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { Loader2, Plus, X } from "lucide-react";
 
 const PAGE_VARIANTS = {
@@ -55,6 +64,8 @@ export default function Home() {
   const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<BodyWeightLog[]>([]);
   const [studyLogs, setStudyLogs] = useState<StudyLog[]>([]);
+  const [reactions, setReactions] = useState<FeedReaction[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
 
   const checkSession = useCallback(async () => {
     try {
@@ -67,7 +78,7 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     try {
-      const [u, g, t, n, s, f, ci, r, rl, wl, sl] = await Promise.all([
+      const [u, g, t, n, s, f, ci, r, rl, wl, sl, rx, ch] = await Promise.all([
         supabase.from("users").select("id, username, role, status, created_at"),
         supabase.from("goals").select("*").order("created_at", { ascending: false }),
         supabase.from("tasks").select("*").order("sort_order"),
@@ -79,18 +90,22 @@ export default function Home() {
         supabase.from("routine_logs").select("*").order("log_date", { ascending: false }).limit(300),
         supabase.from("body_weight_logs").select("*").order("log_date", { ascending: false }).limit(90),
         supabase.from("study_logs").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("feed_reactions").select("*"),
+        supabase.from("challenges").select("*").order("created_at", { ascending: false }),
       ]);
-      if (u.data) setUsers(u.data as User[]);
-      if (g.data) setGoals(g.data as Goal[]);
-      if (t.data) setTasks(t.data as Task[]);
-      if (n.data) setNotes(n.data as Note[]);
-      if (s.data) setStreaks(s.data as Streak[]);
-      if (f.data) setFeed(f.data as ActivityFeedItem[]);
+      if (u.data)  setUsers(u.data as User[]);
+      if (g.data)  setGoals(g.data as Goal[]);
+      if (t.data)  setTasks(t.data as Task[]);
+      if (n.data)  setNotes(n.data as Note[]);
+      if (s.data)  setStreaks(s.data as Streak[]);
+      if (f.data)  setFeed(f.data as ActivityFeedItem[]);
       if (ci.data) setCheckins(ci.data as DailyCheckin[]);
       if (r.data)  setRoutines(r.data as Routine[]);
       if (rl.data) setRoutineLogs(rl.data as RoutineLog[]);
       if (wl.data) setWeightLogs(wl.data as BodyWeightLog[]);
       if (sl.data) setStudyLogs(sl.data as StudyLog[]);
+      if (rx.data) setReactions(rx.data as FeedReaction[]);
+      if (ch.data) setChallenges(ch.data as Challenge[]);
     } catch (err) { console.error(err); }
   }, []);
 
@@ -99,7 +114,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const tables = ["tasks", "activity_feed", "streaks", "goals", "notes", "daily_checkins", "routines", "routine_logs", "body_weight_logs", "study_logs"];
+    const tables = ["users", "tasks", "activity_feed", "streaks", "goals", "notes", "daily_checkins", "routines", "routine_logs", "body_weight_logs", "study_logs", "feed_reactions", "challenges", "streak_freeze_logs"];
     const ch = supabase.channel("page-refresh");
     tables.forEach((table) => {
       ch.on("postgres_changes", { event: "*", schema: "public", table }, () => loadData());
@@ -139,12 +154,17 @@ export default function Home() {
   if (!currentUser) return <LoginModal onLoginSuccess={checkSession} />;
 
   const activeGoal = goals.find((g) => g.status === "active") || null;
+  const userXP = useMemo(
+    () => currentUser ? calculateUserXP(currentUser.id, tasks, studyLogs, streaks, goals) : null,
+    [currentUser, tasks, studyLogs, streaks, goals]
+  );
 
   return (
     <div className="min-h-dvh" style={{ background: "#0a0a0a" }}>
       <OfflineBanner />
       <Navigation activeTab={activeTab} setActiveTab={setActiveTab}
-        currentUser={currentUser} onOpenAdmin={() => setShowAdmin(true)} onLogout={handleLogout} />
+        currentUser={currentUser} level={userXP?.level}
+        onOpenAdmin={() => setShowAdmin(true)} onLogout={handleLogout} />
 
       <main className="max-w-md mx-auto px-4 pt-4 pb-safe">
         <AnimatePresence mode="wait">
@@ -154,14 +174,50 @@ export default function Home() {
             <motion.div key="countdown" variants={PAGE_VARIANTS}
               initial="initial" animate="animate" exit="exit"
               transition={{ duration: 0.2 }} className="space-y-4">
+              {/* Check-in reminder — only if not checked in today */}
+              {!checkins.some(
+                (c) => c.user_id === currentUser.id &&
+                       c.checkin_date === new Date().toISOString().split("T")[0]
+              ) && (
+                <CheckinReminder onGoToCheckin={() => {
+                  document.getElementById("daily-checkin-section")?.scrollIntoView({ behavior: "smooth" });
+                }} />
+              )}
+              <XPLevelCard
+                currentUser={currentUser}
+                tasks={tasks}
+                studyLogs={studyLogs}
+                streaks={streaks}
+                goals={goals}
+                onRefresh={loadData}
+              />
               <TodaySummary users={users} tasks={tasks} currentUser={currentUser} />
               <GoalSection goals={goals} tasks={tasks} currentUser={currentUser} onRefresh={loadData} />
               <Leaderboard users={users} tasks={tasks} streaks={streaks} />
               <StreakDisplay streaks={streaks} users={users} currentUser={currentUser} />
               <WeeklyProgress users={users} tasks={tasks} />
-              <DailyCheckinPanel checkins={checkins} users={users}
-                currentUser={currentUser} activeGoal={activeGoal} onRefresh={loadData} />
-              <ActivityFeed items={feed} users={users} />
+              <CrewRankHistory users={users} tasks={tasks} studyLogs={studyLogs} />
+              <RecordsLeaderboard
+                users={users}
+                tasks={tasks}
+                studyLogs={studyLogs}
+                streaks={streaks}
+                goals={goals}
+              />
+              <div id="daily-checkin-section">
+                <DailyCheckinPanel checkins={checkins} users={users}
+                  currentUser={currentUser} activeGoal={activeGoal} onRefresh={loadData} />
+              </div>
+              <ActivityFeed items={feed} users={users}
+                reactions={reactions} currentUser={currentUser}
+                onReact={loadData} />
+              <AchievementsPanel
+                tasks={tasks}
+                studyLogs={studyLogs}
+                goals={goals}
+                streaks={streaks}
+                currentUser={currentUser}
+              />
             </motion.div>
           )}
 
@@ -178,11 +234,19 @@ export default function Home() {
             <motion.div key="study" variants={PAGE_VARIANTS}
               initial="initial" animate="animate" exit="exit" transition={{ duration: 0.2 }}>
               <StudyTracker
-                logs={studyLogs}
-                users={users}
-                currentUser={currentUser}
+                logs={studyLogs} users={users} currentUser={currentUser}
                 onRefresh={loadData}
               />
+              <div className="mt-4">
+                <ChallengesPanel
+                  challenges={challenges}
+                  tasks={tasks}
+                  studyLogs={studyLogs}
+                  users={users}
+                  currentUser={currentUser}
+                  onRefresh={loadData}
+                />
+              </div>
             </motion.div>
           )}
 
@@ -211,6 +275,7 @@ export default function Home() {
                 tasks={tasks}
                 routineLogs={routineLogs}
                 checkins={checkins}
+                studyLogs={studyLogs}
                 streaks={streaks}
                 currentUser={currentUser}
               />
@@ -219,6 +284,12 @@ export default function Home() {
                 users={users}
                 currentUser={currentUser}
               />
+              <AnalyticsDashboard
+                currentUser={currentUser}
+                users={users}
+                tasks={tasks}
+                studyLogs={studyLogs}
+              />
               <BodyWeightTracker
                 logs={weightLogs}
                 users={users}
@@ -226,6 +297,13 @@ export default function Home() {
                 onRefresh={loadData}
               />
               <PushNotifications />
+              <WeeklyReport />
+              <DataExport
+                tasks={tasks}
+                studyLogs={studyLogs}
+                checkins={checkins}
+                currentUser={currentUser}
+              />
               <ReminderSettings />
             </motion.div>
           )}

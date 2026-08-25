@@ -1,0 +1,15 @@
+/* ============================================================
+   AMOLED MODE — added by amoled toggle feature
+   Applied via  html[data-amoled="true"]
+   ============================================================ */
+html[data-amoled="true"] {
+  --bg-primary:   #000000;
+  --bg-secondary: #080808;
+  --bg-card:      #0a0a0a;
+  --bg-elevated:  #111111;
+  --border:       #1a1a1a;
+  --border-subtle:#111111;
+}
+html[data-amoled="true"] body {
+  background-color: #000000;
+}

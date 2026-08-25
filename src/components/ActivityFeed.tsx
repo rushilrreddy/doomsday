@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ActivityFeedItem, User } from "@/lib/types";
+import { ActivityFeedItem, FeedReaction, User } from "@/lib/types";
+import { supabase } from "@/lib/supabase";
 import { CheckSquare, Plus, Share2, Trophy, Flame, MessageSquare, Search, X, Trash2 } from "lucide-react";
 
 const USER_COLORS: Record<string, string> = {
@@ -31,16 +32,42 @@ function relativeTime(d: string) {
 }
 
 interface ActivityFeedProps {
-  items: ActivityFeedItem[];
-  users: User[];
+  items:       ActivityFeedItem[];
+  users:       User[];
+  reactions:   FeedReaction[];
+  currentUser: User;
+  onReact:     () => void;
 }
 
 const CREW = ["rushil", "alan", "kevin"];
 
-export function ActivityFeed({ items, users }: ActivityFeedProps) {
+const EMOJIS = ["🔥", "👏", "💀", "😎"] as const;
+
+export function ActivityFeed({ items, users, reactions, currentUser, onReact }: ActivityFeedProps) {
   const [search, setSearch] = useState("");
   const [personFilter, setPersonFilter] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
+  const toggleReaction = async (feedItemId: string, emoji: string) => {
+    const existing = reactions.find(
+      (r) => r.feed_item_id === feedItemId && r.user_id === currentUser.id && r.emoji === emoji
+    );
+    if (existing) {
+      await supabase.from("feed_reactions").delete().eq("id", existing.id);
+    } else {
+      await supabase.from("feed_reactions").insert([{ feed_item_id: feedItemId, user_id: currentUser.id, emoji }]);
+    }
+    onReact();
+  };
+
+  const getReactionCounts = (feedItemId: string) => {
+    const itemReactions = reactions.filter((r) => r.feed_item_id === feedItemId);
+    return EMOJIS.map((emoji) => ({
+      emoji,
+      count: itemReactions.filter((r) => r.emoji === emoji).length,
+      mine:  itemReactions.some((r) => r.emoji === emoji && r.user_id === currentUser.id),
+    }));
+  };
 
   const getUser = (id: string) => users.find((u) => u.id === id);
 
@@ -162,6 +189,21 @@ export function ActivityFeed({ items, users }: ActivityFeedProps) {
                     <p className="text-sm leading-snug" style={{ color: "#d0d0d0" }}>
                       {item.content}
                     </p>
+                    {/* Reactions */}
+                    <div className="flex items-center gap-1 mt-2 flex-wrap">
+                      {getReactionCounts(item.id).map(({ emoji, count, mine }) => (
+                        <motion.button key={emoji} whileTap={{ scale: 0.8 }}
+                          onClick={() => toggleReaction(item.id, emoji)}
+                          className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[11px] font-semibold transition-all"
+                          style={{
+                            background: mine ? `${color}18` : "#1c1c1c",
+                            border:     mine ? `1px solid ${color}30` : "1px solid #252525",
+                            color:      count > 0 ? (mine ? color : "#888") : "#383838",
+                          }}>
+                          {emoji}{count > 0 && <span className="ml-0.5">{count}</span>}
+                        </motion.button>
+                      ))}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 mt-0.5">
                     <span className="text-[10px]" style={{ color: "#444" }}>

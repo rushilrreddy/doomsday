@@ -26,11 +26,13 @@ interface NavigationProps {
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   currentUser: User;
+  level?: number;
+  freezeTokens?: number;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }
 
-export function Navigation({ activeTab, setActiveTab, currentUser, onOpenAdmin, onLogout }: NavigationProps) {
+export function Navigation({ activeTab, setActiveTab, currentUser, level, freezeTokens, onOpenAdmin, onLogout }: NavigationProps) {
   const color = USER_COLORS[currentUser.username.toLowerCase()] || "#888";
 
   return (
@@ -49,11 +51,19 @@ export function Navigation({ activeTab, setActiveTab, currentUser, onOpenAdmin, 
               {currentUser.username[0].toUpperCase()}
             </div>
             <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-bold capitalize leading-tight" style={{ color: "#f0f0f0" }}>
+                  {currentUser.username}
+                </p>
+                {level !== undefined && (
+                  <span className="text-[9px] font-black px-1.5 py-0.2 rounded-md"
+                    style={{ background: "#7c5cfc25", color: "#7c5cfc" }}>
+                    Lv.{level}
+                  </span>
+                )}
+              </div>
               <p className="text-[10px]" style={{ color: "#555" }}>
                 {currentUser.role === "leader" ? "Leader" : "Member"}
-              </p>
-              <p className="text-sm font-bold capitalize leading-tight" style={{ color: "#f0f0f0" }}>
-                {currentUser.username}
               </p>
             </div>
           </div>
