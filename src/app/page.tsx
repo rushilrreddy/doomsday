@@ -143,6 +143,12 @@ export default function Home() {
     setQuickTaskText(""); setShowQuickAdd(false); loadData();
   };
 
+  const activeGoal = goals.find((g) => g.status === "active") || null;
+  const userXP = useMemo(
+    () => (currentUser ? calculateUserXP(currentUser.id, tasks, studyLogs, streaks, goals) : null),
+    [currentUser, tasks, studyLogs, streaks, goals]
+  );
+
   if (authLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: "#0a0a0a" }}>
@@ -152,12 +158,6 @@ export default function Home() {
   }
 
   if (!currentUser) return <LoginModal onLoginSuccess={checkSession} />;
-
-  const activeGoal = goals.find((g) => g.status === "active") || null;
-  const userXP = useMemo(
-    () => currentUser ? calculateUserXP(currentUser.id, tasks, studyLogs, streaks, goals) : null,
-    [currentUser, tasks, studyLogs, streaks, goals]
-  );
 
   return (
     <div className="min-h-dvh" style={{ background: "#0a0a0a" }}>

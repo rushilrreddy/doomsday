@@ -35,7 +35,7 @@ interface ChallengesPanelProps {
   onRefresh:   () => void;
 }
 
-export function ChallengesPanel({ challenges, tasks, studyLogs, users, currentUser, onRefresh }: ChallengesPanelProps) {
+export function ChallengesPanel({ challenges = [], tasks = [], studyLogs = [], users = [], currentUser, onRefresh }: ChallengesPanelProps) {
   const [showForm,  setShowForm]  = useState(false);
   const [loading,   setLoading]   = useState(false);
   const [title,     setTitle]     = useState("");
@@ -46,23 +46,28 @@ export function ChallengesPanel({ challenges, tasks, studyLogs, users, currentUs
     return d.toISOString().split("T")[0];
   });
 
-  const active = challenges.filter((c) => c.status === "active");
-  const past   = challenges.filter((c) => c.status !== "active");
+  const safeChallenges = challenges || [];
+  const safeUsers = users || [];
+  const safeStudy = studyLogs || [];
+
+  const active = safeChallenges.filter((c) => c && c.status === "active");
+  const past   = safeChallenges.filter((c) => c && c.status !== "active");
 
   // Compute standings for a challenge
   const getStandings = (c: Challenge) => {
-    return users.map((u) => {
+    return safeUsers.map((u) => {
       let score = 0;
       if (c.metric === "dsa_problems") {
-        score = studyLogs
-          .filter((l) => l.user_id === u.id && l.category === "dsa" && l.log_date >= c.start_date && l.log_date <= c.end_date)
-          .reduce((s, l) => s + l.problems_solved, 0);
+        score = safeStudy
+          .filter((l) => l && l.user_id === u.id && l.category === "dsa" && l.log_date >= c.start_date && l.log_date <= c.end_date)
+          .reduce((s, l) => s + (l.problems_solved || 0), 0);
       } else if (c.metric === "study_minutes") {
-        score = studyLogs
-          .filter((l) => l.user_id === u.id && l.log_date >= c.start_date && l.log_date <= c.end_date)
-          .reduce((s, l) => s + l.duration_minutes, 0);
+        score = safeStudy
+          .filter((l) => l && l.user_id === u.id && l.log_date >= c.start_date && l.log_date <= c.end_date)
+          .reduce((s, l) => s + (l.duration_minutes || 0), 0);
       } else if (c.metric === "tasks_done") {
-        score = tasks.filter((t) => t.user_id === u.id && t.is_done && t.task_date >= c.start_date && t.task_date <= c.end_date).length;
+        const safeTasks = tasks || [];
+        score = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date >= c.start_date && t.task_date <= c.end_date).length;
       }
       return { user: u, score };
     }).sort((a, b) => b.score - a.score);

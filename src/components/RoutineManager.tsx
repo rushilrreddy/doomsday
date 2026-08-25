@@ -25,7 +25,7 @@ const CREW = ["rushil", "alan", "kevin"];
 const EMOJI_OPTIONS = ["⚡","🏃","💪","📚","🧘","🥗","💧","😴","🎯","🔥","🏋️","🚴","✍️","🎸","🧠","🥊","🏊","🎨","📖","⏰"];
 
 export function RoutineManager({ routines, routineLogs, users, currentUser, activeGoal, onRefresh }: RoutineManagerProps) {
-  const [selected, setSelected] = useState(currentUser.username.toLowerCase());
+  const [selected, setSelected] = useState(() => currentUser?.username?.toLowerCase() || "rushil");
   const [showCreate, setShowCreate] = useState(false);
   const [showCrewRoutines, setShowCrewRoutines] = useState(false);
   const [loading, setLoading] = useState(false);

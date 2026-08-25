@@ -54,7 +54,7 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
 }
 
 export function BodyWeightTracker({ logs, users, currentUser, onRefresh }: BodyWeightTrackerProps) {
-  const [selected, setSelected] = useState(currentUser.username.toLowerCase());
+  const [selected, setSelected] = useState(() => currentUser?.username?.toLowerCase() || "rushil");
   const [weight, setWeight] = useState("");
   const [unit, setUnit] = useState<"kg" | "lbs">("kg");
   const [note, setNote] = useState("");
