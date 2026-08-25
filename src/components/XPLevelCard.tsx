@@ -137,7 +137,7 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
   );
 
   const myStreak = (streaks || []).find((s) => s && s.user_id === currentUser?.id);
-  const freezeTokens = myStreak?.freeze_tokens ?? 1;
+  const freezeTokens = Math.min(5, Math.max(0, myStreak?.freeze_tokens ?? 1));
 
   // Check if yesterday was missed and eligible for freeze
   const yesterdayStr = useMemo(() => {
@@ -155,12 +155,24 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
     return hadTask || hadStudy || hadGym || isFrozen;
   }, [tasks, studyLogs, weightLogs, currentUser, yesterdayStr, myStreak?.frozen_dates]);
 
+  // Only consider streak at risk if the user has logged in the past and has an active streak
+  const hasEverLoggedPastActivity = useMemo(() => {
+    if (!currentUser) return false;
+    const hasPastTasks = (tasks || []).some((t) => t && t.user_id === currentUser.id && t.is_done && t.task_date && t.task_date <= yesterdayStr);
+    const hasPastStudy = (studyLogs || []).some((l) => l && l.user_id === currentUser.id && l.log_date <= yesterdayStr);
+    const hasPastGym = (weightLogs || []).some((g) => g && g.user_id === currentUser.id && g.log_date <= yesterdayStr);
+    const hasStreak = (myStreak?.current_streak || 0) > 0 || (myStreak?.longest_streak || 0) > 0;
+    return hasPastTasks || hasPastStudy || hasPastGym || hasStreak;
+  }, [currentUser, tasks, studyLogs, weightLogs, yesterdayStr, myStreak]);
+
+  const showStreakAtRisk = hasEverLoggedPastActivity && !hasYesterdayActivity && freezeTokens > 0;
+
   const handleUseFreeze = async () => {
     if (freezeTokens <= 0 || !myStreak || !currentUser) return;
     setUsingFreeze(true);
     try {
       const updatedDates = [...(myStreak.frozen_dates || []), yesterdayStr];
-      const updatedTokens = Math.max(0, freezeTokens - 1);
+      const updatedTokens = Math.max(0, Math.min(5, freezeTokens - 1));
 
       await supabase.from("streaks").update({
         freeze_tokens: updatedTokens,
@@ -247,13 +259,13 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
             </div>
           </div>
 
-          {/* Freeze Tokens Pill */}
+          {/* Freeze Tokens Pill (Max 5) */}
           <div
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0"
             style={{ background: "#0c1b29", border: "1px solid #38bdf840", color: "#38bdf8" }}
           >
             <Snowflake className="w-3.5 h-3.5" />
-            <span>{freezeTokens} Freeze{freezeTokens !== 1 ? "s" : ""}</span>
+            <span>{freezeTokens}/5 Freezes</span>
           </div>
         </div>
 
@@ -276,8 +288,8 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
           </div>
         </div>
 
-        {/* Freeze Warning & Action */}
-        {!hasYesterdayActivity && freezeTokens > 0 && (
+        {/* Freeze Warning & Action — ONLY shown if user has logged in the past and yesterday had no activity */}
+        {showStreakAtRisk && (
           <div
             className="p-3 rounded-xl flex items-center justify-between gap-2"
             style={{ background: "#0a1926", border: "1px solid #38bdf835" }}
@@ -286,7 +298,7 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
               <ShieldAlert className="w-4 h-4 shrink-0 text-cyan-400" />
               <div>
                 <p className="text-xs font-bold text-cyan-300">Streak at risk!</p>
-                <p className="text-[10px] text-cyan-200/70">Missed yesterday? Use 1 freeze token.</p>
+                <p className="text-[10px] text-cyan-200/70">Missed yesterday? Spend 1 freeze ({freezeTokens} left).</p>
               </div>
             </div>
             <motion.button

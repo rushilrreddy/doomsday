@@ -1,11 +1,11 @@
 {
-  "name": "Countdown Crew",
-  "short_name": "CrewCount",
-  "description": "Friends Progress & Bet Tracker with Live Realtime Sync",
+  "name": "DOOMSDAY",
+  "short_name": "Doomsday",
+  "description": "Doomsday Prep & Crew Execution Protocol",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090d16",
-  "theme_color": "#090d16",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
   "orientation": "portrait",
   "icons": [
     {

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog, FeedReaction, Challenge } from "@/lib/types";
+import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog, FeedReaction, Challenge, ImportantEvent } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { Navigation, TabType } from "@/components/Navigation";
 import { GoalSection } from "@/components/GoalSection";
@@ -35,7 +35,7 @@ import { XPLevelCard, calculateUserXP } from "@/components/XPLevelCard";
 import { RecordsLeaderboard } from "@/components/RecordsLeaderboard";
 import { CrewRankHistory } from "@/components/CrewRankHistory";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
-import { Loader2, CheckSquare, Repeat2, Settings, Shield, LogOut } from "lucide-react";
+import { Loader2, CheckSquare, Repeat2, Shield, LogOut, ClipboardCheck } from "lucide-react";
 
 const PAGE_VARIANTS = {
   initial: { opacity: 0, y: 10 },
@@ -66,6 +66,7 @@ export default function Home() {
   const [studyLogs, setStudyLogs] = useState<StudyLog[]>([]);
   const [reactions, setReactions] = useState<FeedReaction[]>([]);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
+  const [events, setEvents] = useState<ImportantEvent[]>([]);
 
   const checkSession = useCallback(async () => {
     try {
@@ -81,7 +82,7 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     try {
-      const [u, g, t, n, s, f, ci, r, rl, wl, sl, rx, ch] = await Promise.all([
+      const [u, g, t, n, s, f, ci, r, rl, wl, sl, rx, ch, ev] = await Promise.all([
         supabase.from("users").select("id, username, role, status, created_at"),
         supabase.from("goals").select("*").order("created_at", { ascending: false }),
         supabase.from("tasks").select("*").order("sort_order"),
@@ -95,6 +96,7 @@ export default function Home() {
         supabase.from("study_logs").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("feed_reactions").select("*"),
         supabase.from("challenges").select("*").order("created_at", { ascending: false }),
+        supabase.from("important_events").select("*").order("event_date", { ascending: true }),
       ]);
       if (u.data)  setUsers(u.data as User[]);
       if (g.data)  setGoals(g.data as Goal[]);
@@ -109,6 +111,7 @@ export default function Home() {
       if (sl.data) setStudyLogs(sl.data as StudyLog[]);
       if (rx.data) setReactions(rx.data as FeedReaction[]);
       if (ch.data) setChallenges(ch.data as Challenge[]);
+      if (ev.data) setEvents(ev.data as ImportantEvent[]);
     } catch (err) {
       console.error(err);
     }
@@ -122,7 +125,7 @@ export default function Home() {
     const tables = [
       "users", "tasks", "activity_feed", "streaks", "goals", "notes",
       "daily_checkins", "routines", "routine_logs", "body_weight_logs",
-      "study_logs", "feed_reactions", "challenges", "streak_freeze_logs"
+      "study_logs", "feed_reactions", "challenges", "streak_freeze_logs", "important_events"
     ];
     const ch = supabase.channel("page-refresh");
     tables.forEach((table) => {
@@ -152,7 +155,7 @@ export default function Home() {
   if (authLoading) {
     return (
       <div className="min-h-dvh flex items-center justify-center" style={{ background: "#0a0a0a" }}>
-        <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-red-500" />
       </div>
     );
   }
@@ -173,10 +176,10 @@ export default function Home() {
         onLogout={handleLogout}
       />
 
-      <main className="max-w-md mx-auto px-4 pt-3.5 pb-safe">
+      <main className="max-w-md mx-auto px-4 pt-3 pb-safe">
         <AnimatePresence mode="wait">
 
-          {/* ── 1. HOME TAB ── */}
+          {/* ── 1. HOME TAB (Hero Countdown, Level, Summary & Live Feed) ── */}
           {activeTab === "countdown" && (
             <motion.div
               key="countdown"
@@ -189,16 +192,14 @@ export default function Home() {
             >
               {/* Check-in reminder — only after 7:00 PM if not checked in today */}
               <CheckinReminder
-                onGoToCheckin={() => {
-                  document.getElementById("daily-checkin-section")?.scrollIntoView({ behavior: "smooth" });
-                }}
+                onGoToCheckin={() => setActiveTab("checkin")}
                 hasCheckedInToday={hasCheckedInToday}
               />
 
               {/* Hero Live Countdown Clock */}
               <GoalSection goals={goals} tasks={tasks} currentUser={currentUser} onRefresh={loadData} />
 
-              {/* XP Level & Streak Freeze Card */}
+              {/* Pure White XP Level & Streak Freeze Card */}
               <XPLevelCard
                 currentUser={currentUser}
                 tasks={tasks}
@@ -212,25 +213,6 @@ export default function Home() {
               {/* Today's Summary Circular Gauges */}
               <TodaySummary users={users} tasks={tasks} currentUser={currentUser} />
 
-              {/* Dedicated Gym / Workout Check-in (+20 XP) */}
-              <GymCheckinCard
-                logs={weightLogs}
-                users={users}
-                currentUser={currentUser}
-                onRefresh={loadData}
-              />
-
-              {/* Daily Check-in submission & list */}
-              <div id="daily-checkin-section">
-                <DailyCheckinPanel
-                  checkins={checkins}
-                  users={users}
-                  currentUser={currentUser}
-                  activeGoal={activeGoal}
-                  onRefresh={loadData}
-                />
-              </div>
-
               {/* Real-time Activity Feed */}
               <ActivityFeed
                 items={feed}
@@ -242,7 +224,43 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 2. EXECUTION TAB (Tasks & Habit Routines) ── */}
+          {/* ── 2. DEDICATED DAILY CHECK-IN TAB ── */}
+          {activeTab === "checkin" && (
+            <motion.div
+              key="checkin"
+              variants={PAGE_VARIANTS}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={{ duration: 0.2 }}
+              className="space-y-4"
+            >
+              {/* Keep-alive alert banner */}
+              <CheckinReminder
+                onGoToCheckin={() => {}}
+                hasCheckedInToday={hasCheckedInToday}
+              />
+
+              {/* Dedicated Gym Check-in Card (+20 XP) */}
+              <GymCheckinCard
+                logs={weightLogs}
+                users={users}
+                currentUser={currentUser}
+                onRefresh={loadData}
+              />
+
+              {/* Daily Check-in submission form & history */}
+              <DailyCheckinPanel
+                checkins={checkins}
+                users={users}
+                currentUser={currentUser}
+                activeGoal={activeGoal}
+                onRefresh={loadData}
+              />
+            </motion.div>
+          )}
+
+          {/* ── 3. EXECUTION TAB (Tasks & Habit Routines) ── */}
           {activeTab === "tasks" && (
             <motion.div
               key="tasks"
@@ -302,7 +320,7 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 3. STUDY & DSA TAB ── */}
+          {/* ── 4. STUDY & DSA TAB ── */}
           {activeTab === "study" && (
             <motion.div
               key="study"
@@ -327,7 +345,7 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 4. ANALYTICS & STANDINGS TAB ── */}
+          {/* ── 5. ANALYTICS & CALENDAR TAB ── */}
           {activeTab === "stats" && (
             <motion.div
               key="stats"
@@ -341,7 +359,7 @@ export default function Home() {
               <Leaderboard users={users} tasks={tasks} streaks={streaks} />
               <StreakDisplay streaks={streaks} users={users} currentUser={currentUser} />
 
-              {/* Monthly Streaks Calendar with Fire Symbols */}
+              {/* Monthly Streaks & Exams Calendar (with Fire and Exam milestones) */}
               <StreakCalendar
                 users={users}
                 tasks={tasks}
@@ -350,7 +368,9 @@ export default function Home() {
                 studyLogs={studyLogs}
                 weightLogs={weightLogs}
                 streaks={streaks}
+                events={events}
                 currentUser={currentUser}
+                onRefreshEvents={loadData}
               />
 
               <WeeklyProgress users={users} tasks={tasks} />
@@ -387,7 +407,7 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 5. SETTINGS & NOTES TAB ── */}
+          {/* ── 6. SETTINGS & NOTES TAB ── */}
           {activeTab === "settings" && (
             <motion.div
               key="settings"
@@ -398,8 +418,8 @@ export default function Home() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {/* App & Notification Settings */}
-              <ReminderSettings />
+              {/* DOOMSDAY App & Notification Settings + Streak Freezes (x/5) */}
+              <ReminderSettings currentUser={currentUser} streaks={streaks} />
 
               {/* Web Push Subscriptions */}
               <PushNotifications />
@@ -451,7 +471,7 @@ export default function Home() {
                   className="inline-flex items-center gap-2 text-xs font-semibold text-red-400 hover:text-red-300 px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  Sign out of Countdown Crew
+                  Sign out of DOOMSDAY
                 </button>
               </div>
             </motion.div>

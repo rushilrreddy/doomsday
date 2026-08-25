@@ -3,16 +3,17 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { User } from "@/lib/types";
-import { Home, CheckSquare, GraduationCap, BarChart2, Settings, Shield } from "lucide-react";
+import { Home, ClipboardCheck, CheckSquare, GraduationCap, BarChart2, Settings, Shield } from "lucide-react";
 
-export type TabType = "countdown" | "tasks" | "study" | "stats" | "settings";
+export type TabType = "countdown" | "checkin" | "tasks" | "study" | "stats" | "settings";
 
 const TABS = [
-  { id: "countdown" as TabType, icon: Home,          label: "Home"     },
-  { id: "tasks"     as TabType, icon: CheckSquare,   label: "Execution"},
-  { id: "study"     as TabType, icon: GraduationCap, label: "Study"    },
-  { id: "stats"     as TabType, icon: BarChart2,     label: "Analytics"},
-  { id: "settings"  as TabType, icon: Settings,      label: "Settings" },
+  { id: "countdown" as TabType, icon: Home,           label: "Home"     },
+  { id: "checkin"   as TabType, icon: ClipboardCheck, label: "Check-in" },
+  { id: "tasks"     as TabType, icon: CheckSquare,    label: "Tasks"    },
+  { id: "study"     as TabType, icon: GraduationCap,  label: "Study"    },
+  { id: "stats"     as TabType, icon: BarChart2,      label: "Analytics"},
+  { id: "settings"  as TabType, icon: Settings,       label: "Settings" },
 ];
 
 const USER_COLORS: Record<string, string> = {
@@ -38,9 +39,9 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, onOpen
     <>
       {/* Top Header */}
       <header
-        className="sticky top-0 z-40 px-5 py-3.5"
+        className="sticky top-0 z-40 px-4 py-3"
         style={{
-          background: "rgba(10, 10, 12, 0.95)",
+          background: "rgba(10, 10, 12, 0.96)",
           backdropFilter: "blur(12px)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.07)",
         }}
@@ -68,29 +69,34 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, onOpen
                 )}
               </div>
               <p className="text-[10px] text-gray-500 font-medium">
-                {isLeader ? "Crew Leader" : "Crew Member"}
+                {isLeader ? "DOOMSDAY Leader" : "Survivor"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-1.5">
-            {isLeader && (
-              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1">
-                <Shield className="w-3 h-3" /> Master
-              </span>
-            )}
+            <span
+              className="text-[10px] font-black tracking-wider px-2 py-0.5 rounded-lg border uppercase"
+              style={{
+                background: "rgba(239, 68, 68, 0.1)",
+                borderColor: "rgba(239, 68, 68, 0.25)",
+                color: "#f87171",
+              }}
+            >
+              DOOMSDAY
+            </span>
           </div>
         </div>
       </header>
 
-      {/* Bottom Nav Bar — 5 Clean Tabs */}
+      {/* Bottom Nav Bar — 6 Clean Tabs */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-40 px-2 py-2"
+        className="fixed bottom-0 left-0 right-0 z-40 px-1.5 py-1.5"
         style={{
-          background: "rgba(10, 10, 12, 0.96)",
+          background: "rgba(10, 10, 12, 0.97)",
           backdropFilter: "blur(16px)",
           borderTop: "1px solid rgba(255, 255, 255, 0.08)",
-          paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
+          paddingBottom: "calc(6px + env(safe-area-inset-bottom, 0px))",
         }}
       >
         <div className="max-w-md mx-auto flex items-center justify-around">
@@ -102,20 +108,20 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, onOpen
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className="relative flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition-colors"
+                className="relative flex flex-col items-center gap-0.5 py-1 px-2 rounded-xl transition-colors"
               >
                 {active && (
                   <motion.div
                     layoutId="tab-indicator"
-                    className="absolute inset-0 rounded-2xl"
+                    className="absolute inset-0 rounded-xl"
                     style={{ background: "rgba(255, 255, 255, 0.08)" }}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                   />
                 )}
                 <Icon
                   style={{
-                    width: 18,
-                    height: 18,
+                    width: 17,
+                    height: 17,
                     color: active ? "#ffffff" : "#666670",
                     position: "relative",
                     zIndex: 1,
@@ -123,12 +129,12 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, onOpen
                 />
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: 8.5,
                     fontWeight: active ? 700 : 500,
                     color: active ? "#ffffff" : "#666670",
                     position: "relative",
                     zIndex: 1,
-                    letterSpacing: "0.02em",
+                    letterSpacing: "0.01em",
                   }}
                 >
                   {tab.label}

@@ -166,3 +166,13 @@ export interface SessionPayload {
   role: Role;
   exp?: number;
 }
+
+export interface ImportantEvent {
+  id: string;
+  user_id: string;
+  title: string;
+  event_date: string; // "YYYY-MM-DD"
+  category: "exam" | "contest" | "project" | "deadline" | "milestone" | "custom";
+  description?: string | null;
+  created_at: string;
+}

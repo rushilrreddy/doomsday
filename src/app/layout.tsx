@@ -4,18 +4,18 @@ import "./amoled.css";
 import { RealtimeProvider } from "@/components/RealtimeProvider";
 
 export const metadata: Metadata = {
-  title: "Countdown Crew — Friends Progress & Bet Tracker",
-  description: "Mobile-first PWA for friends to track shared goals, daily tasks, notes, and streaks in real time.",
+  title: "DOOMSDAY — Crew Protocol & Progression",
+  description: "Doomsday survivor tracking, task execution, study grinder, and betting protocol.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Countdown Crew",
+    title: "DOOMSDAY",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#090d16",
+  themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

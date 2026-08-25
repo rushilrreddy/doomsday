@@ -74,9 +74,9 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
 
   let data = {};
-  try { data = event.data.json(); } catch { data = { title: 'Countdown Crew', body: event.data.text() }; }
+  try { data = event.data.json(); } catch { data = { title: 'DOOMSDAY', body: event.data.text() }; }
 
-  const { title = 'Countdown Crew', body = '', icon = '/icons/icon-192.png', badge = '/icons/icon-192.png', url = '/' } = data;
+  const { title = 'DOOMSDAY', body = '', icon = '/icons/icon-192.png', badge = '/icons/icon-192.png', url = '/' } = data;
 
   event.waitUntil(
     self.registration.showNotification(title, {
