@@ -35,13 +35,16 @@ function formatDuration(mins: number) {
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
-export function StudyHeatmap({ logs, users, currentUser }: StudyHeatmapProps) {
-  const [selectedUser, setSelectedUser] = useState(currentUser.username.toLowerCase());
+export function StudyHeatmap({ logs = [], users = [], currentUser }: StudyHeatmapProps) {
+  const [selectedUser, setSelectedUser] = useState(() => currentUser?.username?.toLowerCase() || "rushil");
   const [tooltip, setTooltip] = useState<{
     date: string; count: number; problems: number; minutes: number; x: number; y: number;
   } | null>(null);
 
-  const userObj = users.find((u) => u.username.toLowerCase() === selectedUser) || currentUser;
+  const safeUsers = users || [];
+  const safeLogs = logs || [];
+
+  const userObj = safeUsers.find((u) => u && u.username && u.username.toLowerCase() === selectedUser) || currentUser;
   const baseColor = USER_COLORS[selectedUser] || "#7c5cfc";
 
   // Build 90-day grid
@@ -59,13 +62,13 @@ export function StudyHeatmap({ logs, users, currentUser }: StudyHeatmapProps) {
     startDate.setDate(startDate.getDate() + mondayOffset);
 
     // Build date → stats map for selected user
-    const userLogs = logs.filter((l) => l.user_id === userObj.id);
+    const userLogs = safeLogs.filter((l) => l && userObj && l.user_id === userObj.id);
     const dateMap: Record<string, { count: number; problems: number; minutes: number }> = {};
     for (const l of userLogs) {
       if (!dateMap[l.log_date]) dateMap[l.log_date] = { count: 0, problems: 0, minutes: 0 };
       dateMap[l.log_date].count++;
-      dateMap[l.log_date].problems += l.problems_solved;
-      dateMap[l.log_date].minutes  += l.duration_minutes;
+      dateMap[l.log_date].problems += (l.problems_solved || 0);
+      dateMap[l.log_date].minutes  += (l.duration_minutes || 0);
     }
 
     // Build weeks array (each week = 7 days Mon–Sun)
@@ -82,7 +85,7 @@ export function StudyHeatmap({ logs, users, currentUser }: StudyHeatmapProps) {
     }
 
     return { weeks, dateMap };
-  }, [logs, userObj.id]);
+  }, [safeLogs, userObj?.id]);
 
   // Stats summary
   const totalSessions = Object.values(dateMap).reduce((s, v) => s + v.count, 0);

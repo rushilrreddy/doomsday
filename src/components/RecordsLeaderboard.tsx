@@ -20,62 +20,78 @@ const USER_COLORS: Record<string, string> = {
   kevin:  "#f5c518",
 };
 
-export function RecordsLeaderboard({ users, tasks, studyLogs, streaks, goals }: RecordsLeaderboardProps) {
+function safeFormatDate(dateStr?: string) {
+  if (!dateStr || dateStr === "—") return "";
+  try {
+    const d = new Date(dateStr.includes("T") ? dateStr : `${dateStr}T12:00:00`);
+    return isNaN(d.getTime()) ? "" : d.toLocaleDateString("en", { month: "short", day: "numeric" });
+  } catch {
+    return "";
+  }
+}
+
+export function RecordsLeaderboard({ users = [], tasks = [], studyLogs = [], streaks = [], goals = [] }: RecordsLeaderboardProps) {
   const records = useMemo(() => {
+    const safeUsers = users || [];
+    const safeTasks = tasks || [];
+    const safeStudy = studyLogs || [];
+    const safeStreaks = streaks || [];
+    const safeGoals = goals || [];
+
     // 1. Most DSA problems in a single day
     const dsaByDayUser: Record<string, { problems: number; userId: string; date: string }> = {};
-    studyLogs.filter((l) => l.category === "dsa").forEach((l) => {
+    safeStudy.filter((l) => l && l.category === "dsa").forEach((l) => {
       const key = `${l.user_id}_${l.log_date}`;
       if (!dsaByDayUser[key]) dsaByDayUser[key] = { problems: 0, userId: l.user_id, date: l.log_date };
-      dsaByDayUser[key].problems += l.problems_solved;
+      dsaByDayUser[key].problems += (l.problems_solved || 0);
     });
     const maxDSADay = Object.values(dsaByDayUser).sort((a, b) => b.problems - a.problems)[0] || {
-      problems: 0, userId: users[0]?.id || "", date: "—"
+      problems: 0, userId: safeUsers[0]?.id || "", date: "—"
     };
 
     // 2. Longest task streak ever
-    const maxStreak = [...streaks].sort((a, b) => b.longest_streak - a.longest_streak)[0] || {
-      longest_streak: 0, user_id: users[0]?.id || ""
+    const maxStreak = [...safeStreaks].sort((a, b) => (b?.longest_streak || 0) - (a?.longest_streak || 0))[0] || {
+      longest_streak: 0, user_id: safeUsers[0]?.id || ""
     };
 
     // 3. Most study hours all-time
-    const studyByUser = users.map((u) => ({
+    const studyByUser = safeUsers.map((u) => ({
       user: u,
-      minutes: studyLogs.filter((l) => l.user_id === u.id).reduce((acc, l) => acc + l.duration_minutes, 0),
-    })).sort((a, b) => b.minutes - a.minutes)[0] || { user: users[0], minutes: 0 };
+      minutes: safeStudy.filter((l) => l && l.user_id === u.id).reduce((acc, l) => acc + (l.duration_minutes || 0), 0),
+    })).sort((a, b) => b.minutes - a.minutes)[0] || { user: safeUsers[0], minutes: 0 };
 
     // 4. Most tasks completed in a single day
     const tasksByDayUser: Record<string, { count: number; userId: string; date: string }> = {};
-    tasks.filter((t) => t.is_done).forEach((t) => {
+    safeTasks.filter((t) => t && t.is_done).forEach((t) => {
       const key = `${t.user_id}_${t.task_date}`;
       if (!tasksByDayUser[key]) tasksByDayUser[key] = { count: 0, userId: t.user_id, date: t.task_date };
       tasksByDayUser[key].count++;
     });
     const maxTaskDay = Object.values(tasksByDayUser).sort((a, b) => b.count - a.count)[0] || {
-      count: 0, userId: users[0]?.id || "", date: "—"
+      count: 0, userId: safeUsers[0]?.id || "", date: "—"
     };
 
     // 5. Total XP Leader
-    const xpLeaders = users.map((u) => ({
+    const xpLeaders = safeUsers.map((u) => ({
       user: u,
-      xpData: calculateUserXP(u.id, tasks, studyLogs, streaks, goals),
-    })).sort((a, b) => b.xpData.xp - a.xpData.xp)[0] || { user: users[0], xpData: { xp: 0, level: 1 } };
+      xpData: calculateUserXP(u.id, safeTasks, safeStudy, safeStreaks, safeGoals),
+    })).sort((a, b) => (b?.xpData?.xp || 0) - (a?.xpData?.xp || 0))[0] || { user: safeUsers[0], xpData: { xp: 0, level: 1 } };
 
     return [
       {
         id: "dsa_day",
         title: "Most DSA in 1 Day",
         value: `${maxDSADay.problems} problems`,
-        holder: users.find((u) => u.id === maxDSADay.userId)?.username || "—",
-        subtext: maxDSADay.date !== "—" ? new Date(maxDSADay.date + "T12:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }) : "",
+        holder: safeUsers.find((u) => u.id === maxDSADay.userId)?.username || "—",
+        subtext: safeFormatDate(maxDSADay.date),
         icon: Code2,
         color: "#7c5cfc",
       },
       {
         id: "streak_record",
         title: "Longest Task Streak",
-        value: `${maxStreak.longest_streak} days`,
-        holder: users.find((u) => u.id === maxStreak.user_id)?.username || "—",
+        value: `${maxStreak.longest_streak || 0} days`,
+        holder: safeUsers.find((u) => u.id === maxStreak.user_id)?.username || "—",
         subtext: "All-time best",
         icon: Flame,
         color: "#f59e0b",
@@ -83,17 +99,17 @@ export function RecordsLeaderboard({ users, tasks, studyLogs, streaks, goals }: 
       {
         id: "xp_king",
         title: "XP Crew Leader",
-        value: `${xpLeaders.xpData.xp.toLocaleString()} XP`,
-        holder: xpLeaders.user?.username || "—",
-        subtext: `Level ${xpLeaders.xpData.level}`,
+        value: `${(xpLeaders?.xpData?.xp || 0).toLocaleString()} XP`,
+        holder: xpLeaders?.user?.username || "—",
+        subtext: `Level ${xpLeaders?.xpData?.level || 1}`,
         icon: Crown,
         color: "#22c55e",
       },
       {
         id: "study_hours",
         title: "Total Study Time",
-        value: `${Math.round(studyByUser.minutes / 60)} hours`,
-        holder: studyByUser.user?.username || "—",
+        value: `${Math.round((studyByUser?.minutes || 0) / 60)} hours`,
+        holder: studyByUser?.user?.username || "—",
         subtext: "All-time logged",
         icon: Clock,
         color: "#38bdf8",
@@ -102,8 +118,8 @@ export function RecordsLeaderboard({ users, tasks, studyLogs, streaks, goals }: 
         id: "tasks_day",
         title: "Most Tasks in 1 Day",
         value: `${maxTaskDay.count} tasks`,
-        holder: users.find((u) => u.id === maxTaskDay.userId)?.username || "—",
-        subtext: maxTaskDay.date !== "—" ? new Date(maxTaskDay.date + "T12:00:00").toLocaleDateString("en", { month: "short", day: "numeric" }) : "",
+        holder: safeUsers.find((u) => u.id === maxTaskDay.userId)?.username || "—",
+        subtext: safeFormatDate(maxTaskDay.date),
         icon: CheckSquare,
         color: "#ec4899",
       },

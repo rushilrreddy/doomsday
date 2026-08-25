@@ -17,9 +17,13 @@ const USER_COLORS: Record<string, string> = {
   kevin:  "#f5c518",
 };
 
-export function CrewRankHistory({ users, tasks, studyLogs }: CrewRankHistoryProps) {
+export function CrewRankHistory({ users = [], tasks = [], studyLogs = [] }: CrewRankHistoryProps) {
   // Generate the last 6 weeks (Monday to Sunday)
   const history = useMemo(() => {
+    const safeUsers = users || [];
+    const safeTasks = tasks || [];
+    const safeStudy = studyLogs || [];
+
     const weeks: Array<{
       weekLabel: string;
       winner: User | null;
@@ -40,14 +44,20 @@ export function CrewRankHistory({ users, tasks, studyLogs }: CrewRankHistoryProp
       const monStr = mon.toISOString().split("T")[0];
       const sunStr = sun.toISOString().split("T")[0];
 
-      const weekLabel = `${mon.toLocaleDateString("en", { month: "short", day: "numeric" })}`;
+      let weekLabel = "";
+      try {
+        weekLabel = mon.toLocaleDateString("en", { month: "short", day: "numeric" });
+      } catch {
+        weekLabel = `Wk -${w}`;
+      }
 
       const scores: Record<string, number> = {};
-      users.forEach((u) => {
-        const uTasks = tasks.filter((t) => t.user_id === u.id && t.is_done && t.task_date >= monStr && t.task_date <= sunStr).length;
-        const uProblems = studyLogs
-          .filter((l) => l.user_id === u.id && l.category === "dsa" && l.log_date >= monStr && l.log_date <= sunStr)
-          .reduce((acc, l) => acc + l.problems_solved, 0);
+      safeUsers.forEach((u) => {
+        if (!u) return;
+        const uTasks = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date >= monStr && t.task_date <= sunStr).length;
+        const uProblems = safeStudy
+          .filter((l) => l && l.user_id === u.id && l.category === "dsa" && l.log_date >= monStr && l.log_date <= sunStr)
+          .reduce((acc, l) => acc + (l.problems_solved || 0), 0);
         scores[u.id] = uTasks * 5 + uProblems * 10;
       });
 
@@ -60,7 +70,7 @@ export function CrewRankHistory({ users, tasks, studyLogs }: CrewRankHistoryProp
         }
       });
 
-      const winner = winnerId ? users.find((u) => u.id === winnerId) || null : null;
+      const winner = winnerId ? safeUsers.find((u) => u && u.id === winnerId) || null : null;
       weeks.push({ weekLabel, winner, scores });
     }
 

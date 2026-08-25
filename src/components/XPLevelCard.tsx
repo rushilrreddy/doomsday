@@ -26,15 +26,20 @@ const LEVEL_TIERS = [
 
 export function calculateUserXP(
   userId: string,
-  tasks: Task[],
-  studyLogs: StudyLog[],
-  streaks: Streak[],
-  goals: Goal[]
+  tasks: Task[] = [],
+  studyLogs: StudyLog[] = [],
+  streaks: Streak[] = [],
+  goals: Goal[] = []
 ): { xp: number; level: number; currentLevelMinXP: number; nextLevelXP: number; progressPct: number; tier: typeof LEVEL_TIERS[0] } {
-  const userTasks = tasks.filter((t) => t.user_id === userId && t.is_done);
-  const userStudy = studyLogs.filter((l) => l.user_id === userId);
-  const userStreak = streaks.find((s) => s.user_id === userId);
-  const userGoals = goals.filter((g) => g.winner_id === userId && g.status === "achieved");
+  const safeTasks = tasks || [];
+  const safeStudy = studyLogs || [];
+  const safeStreaks = streaks || [];
+  const safeGoals = goals || [];
+
+  const userTasks = safeTasks.filter((t) => t && t.user_id === userId && t.is_done);
+  const userStudy = safeStudy.filter((l) => l && l.user_id === userId);
+  const userStreak = safeStreaks.find((s) => s && s.user_id === userId);
+  const userGoals = safeGoals.filter((g) => g && g.winner_id === userId && g.status === "achieved");
 
   // XP Breakdown:
   // 10 XP per task done
@@ -43,8 +48,8 @@ export function calculateUserXP(
   // 250 XP per Goal achieved
   // 50 XP per streak day (longest streak)
   const taskXP = userTasks.length * 10;
-  const dsaXP = userStudy.filter((l) => l.category === "dsa").reduce((acc, l) => acc + l.problems_solved * 15, 0);
-  const studyMinsXP = userStudy.reduce((acc, l) => acc + l.duration_minutes, 0);
+  const dsaXP = userStudy.filter((l) => l.category === "dsa").reduce((acc, l) => acc + (l.problems_solved || 0) * 15, 0);
+  const studyMinsXP = userStudy.reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
   const goalXP = userGoals.length * 250;
   const streakXP = (userStreak?.longest_streak || 0) * 50;
 

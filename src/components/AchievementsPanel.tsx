@@ -57,14 +57,31 @@ interface AchievementsPanelProps {
   currentUser:User;
 }
 
-export function AchievementsPanel({ tasks, studyLogs, goals, streaks, currentUser }: AchievementsPanelProps) {
+export function AchievementsPanel({ tasks = [], studyLogs = [], goals = [], streaks = [], currentUser }: AchievementsPanelProps) {
   const [showAll, setShowAll] = React.useState(false);
 
-  const myStreak = streaks.find((s) => s.user_id === currentUser.id);
+  const safeTasks = tasks || [];
+  const safeStudy = studyLogs || [];
+  const safeGoals = goals || [];
+  const safeStreaks = streaks || [];
+
+  const myStreak = safeStreaks.find((s) => s && s.user_id === currentUser?.id);
 
   const badgeData = useMemo<BadgeData>(() => {
-    const myTasks     = tasks.filter((t) => t.user_id === currentUser.id);
-    const myStudyLogs = studyLogs.filter((l) => l.user_id === currentUser.id);
+    if (!currentUser) {
+      return {
+        tasksEverDone: 0,
+        longestStreak: 0,
+        currentStreak: 0,
+        totalDSAProblems: 0,
+        studySessionsTotal: 0,
+        studyStreak: 0,
+        goalsAchieved: 0,
+        hasPerfectDay: false,
+      };
+    }
+    const myTasks     = safeTasks.filter((t) => t && t.user_id === currentUser.id);
+    const myStudyLogs = safeStudy.filter((l) => l && l.user_id === currentUser.id);
 
     // Study streak
     const dates = [...new Set(myStudyLogs.map((l) => l.log_date))].sort().reverse();
@@ -96,10 +113,10 @@ export function AchievementsPanel({ tasks, studyLogs, goals, streaks, currentUse
       studyStreak,
       tasksEverDone:     myTasks.filter((t) => t.is_done).length,
       hasPerfectDay,
-      goalsAchieved:     goals.filter((g) => g.status === "achieved").length,
+      goalsAchieved:     safeGoals.filter((g) => g && g.status === "achieved").length,
       studySessionsTotal:myStudyLogs.length,
     };
-  }, [tasks, studyLogs, goals, streaks, currentUser.id, myStreak]);
+  }, [safeTasks, safeStudy, safeGoals, safeStreaks, currentUser?.id, myStreak]);
 
   const { earned, locked } = useMemo(() => {
     const earned = BADGES.filter((b) => b.check(badgeData));

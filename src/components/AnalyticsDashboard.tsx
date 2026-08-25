@@ -19,16 +19,21 @@ const DIFF_COLORS = {
   other:  { bg: "#7c5cfc", label: "Other"  },
 };
 
-export function AnalyticsDashboard({ currentUser, users, tasks, studyLogs }: AnalyticsDashboardProps) {
-  const [selectedUser, setSelectedUser] = useState<string>(currentUser.id);
+export function AnalyticsDashboard({ currentUser, users = [], tasks = [], studyLogs = [] }: AnalyticsDashboardProps) {
+  const safeUsers = users || [];
+  const safeTasks = tasks || [];
+  const safeStudy = studyLogs || [];
+
+  const [selectedUser, setSelectedUser] = useState<string>(currentUser?.id || "");
   const [targetGoalProblems, setTargetGoalProblems] = useState<number>(100);
 
-  const activeUser = users.find((u) => u.id === selectedUser) || currentUser;
+  const activeUser = safeUsers.find((u) => u && u.id === selectedUser) || currentUser;
 
   // 1. 12-Week Study Hours
   const weeklyStudyHours = useMemo(() => {
     const weeks: Array<{ label: string; hours: number }> = [];
     const now = new Date();
+    if (!activeUser) return weeks;
 
     for (let i = 11; i >= 0; i--) {
       const mon = new Date(now);
@@ -43,27 +48,33 @@ export function AnalyticsDashboard({ currentUser, users, tasks, studyLogs }: Ana
       const monStr = mon.toISOString().split("T")[0];
       const sunStr = sun.toISOString().split("T")[0];
 
-      const mins = studyLogs
-        .filter((l) => l.user_id === activeUser.id && l.log_date >= monStr && l.log_date <= sunStr)
-        .reduce((acc, l) => acc + l.duration_minutes, 0);
+      const mins = safeStudy
+        .filter((l) => l && l.user_id === activeUser.id && l.log_date >= monStr && l.log_date <= sunStr)
+        .reduce((acc, l) => acc + (l.duration_minutes || 0), 0);
 
-      const label = `${mon.toLocaleDateString("en", { month: "numeric", day: "numeric" })}`;
+      let label = "";
+      try {
+        label = `${mon.toLocaleDateString("en", { month: "numeric", day: "numeric" })}`;
+      } catch {
+        label = `Wk -${i}`;
+      }
       weeks.push({ label, hours: Math.round((mins / 60) * 10) / 10 });
     }
     return weeks;
-  }, [studyLogs, activeUser.id]);
+  }, [safeStudy, activeUser]);
 
   const maxWeeklyHours = Math.max(...weeklyStudyHours.map((w) => w.hours), 5);
 
   // 2. DSA Difficulty Breakdown
   const difficultyStats = useMemo(() => {
-    const userDSA = studyLogs.filter((l) => l.user_id === activeUser.id && l.category === "dsa");
+    if (!activeUser) return { counts: { easy: 0, medium: 0, hard: 0, other: 0 }, total: 0, pcts: { easy: 0, medium: 0, hard: 0, other: 0 } };
+    const userDSA = safeStudy.filter((l) => l && l.user_id === activeUser.id && l.category === "dsa");
     const counts = { easy: 0, medium: 0, hard: 0, other: 0 };
 
     userDSA.forEach((l) => {
       const diff = (l.difficulty || "other").toLowerCase() as keyof typeof counts;
-      if (counts[diff] !== undefined) counts[diff] += l.problems_solved;
-      else counts.other += l.problems_solved;
+      if (counts[diff] !== undefined) counts[diff] += (l.problems_solved || 0);
+      else counts.other += (l.problems_solved || 0);
     });
 
     const total = counts.easy + counts.medium + counts.hard + counts.other;
@@ -78,22 +89,23 @@ export function AnalyticsDashboard({ currentUser, users, tasks, studyLogs }: Ana
         other:  total > 0 ? Math.round((counts.other / total) * 100) : 0,
       },
     };
-  }, [studyLogs, activeUser.id]);
+  }, [safeStudy, activeUser]);
 
   // 3. Predicted Completion Calculator
   const prediction = useMemo(() => {
+    if (!activeUser) return { dailyPace: 0, totalSolved: 0, remaining: 0, daysNeeded: 0, etaDate: "—" };
     const today = new Date();
     const d14Ago = new Date();
     d14Ago.setDate(d14Ago.getDate() - 14);
     const d14Str = d14Ago.toISOString().split("T")[0];
 
-    const past14Problems = studyLogs
-      .filter((l) => l.user_id === activeUser.id && l.category === "dsa" && l.log_date >= d14Str)
-      .reduce((acc, l) => acc + l.problems_solved, 0);
+    const past14Problems = safeStudy
+      .filter((l) => l && l.user_id === activeUser.id && l.category === "dsa" && l.log_date >= d14Str)
+      .reduce((acc, l) => acc + (l.problems_solved || 0), 0);
 
-    const totalSolved = studyLogs
-      .filter((l) => l.user_id === activeUser.id && l.category === "dsa")
-      .reduce((acc, l) => acc + l.problems_solved, 0);
+    const totalSolved = safeStudy
+      .filter((l) => l && l.user_id === activeUser.id && l.category === "dsa")
+      .reduce((acc, l) => acc + (l.problems_solved || 0), 0);
 
     const dailyPace = Math.max(0.2, past14Problems / 14);
     const remaining = Math.max(0, targetGoalProblems - totalSolved);
@@ -102,23 +114,31 @@ export function AnalyticsDashboard({ currentUser, users, tasks, studyLogs }: Ana
     const targetDate = new Date();
     targetDate.setDate(targetDate.getDate() + daysNeeded);
 
+    let etaDate = "";
+    try {
+      etaDate = targetDate.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      etaDate = `in ${daysNeeded} days`;
+    }
+
     return {
       dailyPace: Math.round(dailyPace * 10) / 10,
       totalSolved,
       remaining,
       daysNeeded,
-      etaDate: targetDate.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }),
+      etaDate,
     };
-  }, [studyLogs, activeUser.id, targetGoalProblems]);
+  }, [safeStudy, activeUser, targetGoalProblems]);
 
   // 4. 30-Day Task Completion Rate & Improvement
   const taskRateStats = useMemo(() => {
+    if (!activeUser) return { currentRate: 0, currentDone: 0, totalTasks: 0, delta: 0 };
     const now = new Date();
     const d30 = new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0];
     const d60 = new Date(now.getTime() - 60 * 86400000).toISOString().split("T")[0];
 
-    const currentPeriodTasks = tasks.filter((t) => t.user_id === activeUser.id && t.task_date >= d30);
-    const prevPeriodTasks = tasks.filter((t) => t.user_id === activeUser.id && t.task_date >= d60 && t.task_date < d30);
+    const currentPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date >= d30);
+    const prevPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date >= d60 && t.task_date < d30);
 
     const currentDone = currentPeriodTasks.filter((t) => t.is_done).length;
     const currentRate = currentPeriodTasks.length > 0 ? Math.round((currentDone / currentPeriodTasks.length) * 100) : 0;
@@ -134,7 +154,7 @@ export function AnalyticsDashboard({ currentUser, users, tasks, studyLogs }: Ana
       totalTasks: currentPeriodTasks.length,
       delta,
     };
-  }, [tasks, activeUser.id]);
+  }, [safeTasks, activeUser]);
 
   return (
     <div className="space-y-4">

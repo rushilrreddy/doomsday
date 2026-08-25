@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+function initWebPush() {
+  if (process.env.VAPID_SUBJECT && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    try {
+      webpush.setVapidDetails(
+        process.env.VAPID_SUBJECT,
+        process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        process.env.VAPID_PRIVATE_KEY
+      );
+    } catch { /* ignore */ }
+  }
+}
 
 export interface PushPayload {
   title: string;
@@ -23,6 +24,7 @@ export interface PushPayload {
 
 // POST /api/push/send
 export async function POST(req: NextRequest) {
+  initWebPush();
   const payload: PushPayload = await req.json();
 
   const { data: subs } = await supabase

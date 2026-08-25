@@ -47,7 +47,7 @@ export function Leaderboard({ users, tasks, streaks }: LeaderboardProps) {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold" style={{ color: "#555" }}>
-            {scores[0].uname} is leading
+            {scores[0]?.uname ? `${scores[0].uname} is leading` : "Crew Standings"}
           </span>
           <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
             <TrendingUp className="w-4 h-4" style={{ color: "#555" }} />

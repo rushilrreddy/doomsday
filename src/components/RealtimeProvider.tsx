@@ -19,10 +19,14 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const ch = supabase.channel("crew-realtime")
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "tasks" }, (p) => {
-        if (p.new.is_done) addToast("✅ A task was just checked off!");
+        if (p?.new && typeof p.new === "object" && "is_done" in p.new && p.new.is_done) {
+          addToast("✅ A task was just checked off!");
+        }
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activity_feed" }, (p) => {
-        if (p.new.content) addToast(p.new.content);
+        if (p?.new && typeof p.new === "object" && "content" in p.new && p.new.content) {
+          addToast(String(p.new.content));
+        }
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "goals" }, () => {
         addToast("🎯 Challenge updated!");
