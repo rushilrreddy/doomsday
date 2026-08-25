@@ -18,6 +18,8 @@ import { TodaySummary } from "@/components/TodaySummary";
 import { WeeklyProgress } from "@/components/WeeklyProgress";
 import { ReminderSettings } from "@/components/ReminderSettings";
 import { DailyCheckinPanel } from "@/components/DailyCheckinPanel";
+import { GymCheckinCard } from "@/components/GymCheckinCard";
+import { StreakCalendar } from "@/components/StreakCalendar";
 import { RoutineManager } from "@/components/RoutineManager";
 import { BodyWeightTracker } from "@/components/BodyWeightTracker";
 import { StudyTracker } from "@/components/StudyTracker";
@@ -210,6 +212,14 @@ export default function Home() {
               {/* Today's Summary Circular Gauges */}
               <TodaySummary users={users} tasks={tasks} currentUser={currentUser} />
 
+              {/* Dedicated Gym / Workout Check-in (+20 XP) */}
+              <GymCheckinCard
+                logs={weightLogs}
+                users={users}
+                currentUser={currentUser}
+                onRefresh={loadData}
+              />
+
               {/* Daily Check-in submission & list */}
               <div id="daily-checkin-section">
                 <DailyCheckinPanel
@@ -330,6 +340,19 @@ export default function Home() {
             >
               <Leaderboard users={users} tasks={tasks} streaks={streaks} />
               <StreakDisplay streaks={streaks} users={users} currentUser={currentUser} />
+
+              {/* Monthly Streaks Calendar with Fire Symbols */}
+              <StreakCalendar
+                users={users}
+                tasks={tasks}
+                routineLogs={routineLogs}
+                checkins={checkins}
+                studyLogs={studyLogs}
+                weightLogs={weightLogs}
+                streaks={streaks}
+                currentUser={currentUser}
+              />
+
               <WeeklyProgress users={users} tasks={tasks} />
               <ChallengesPanel
                 challenges={challenges}

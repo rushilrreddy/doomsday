@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Challenge, Task, StudyLog, User } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { Swords, Plus, Trophy, X, Clock, CheckSquare, Code2 } from "lucide-react";
+import { Swords, Plus, Trophy, X, Clock, CheckSquare, Code2, Trash2 } from "lucide-react";
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
@@ -108,6 +108,18 @@ export function ChallengesPanel({ challenges = [], tasks = [], studyLogs = [], u
   const daysLeft = (endDate: string) => {
     const d = Math.ceil((new Date(endDate).getTime() - Date.now()) / 86400000);
     return d < 0 ? "Ended" : d === 0 ? "Ends today" : `${d}d left`;
+  };
+
+  const handleDeletePastChallenge = async (id: string) => {
+    await supabase.from("challenges").delete().eq("id", id);
+    onRefresh();
+  };
+
+  const handleClearAllPastChallenges = async () => {
+    if (past.length === 0) return;
+    const ids = past.map((c) => c.id);
+    await supabase.from("challenges").delete().in("id", ids);
+    onRefresh();
   };
 
   return (
@@ -254,8 +266,18 @@ export function ChallengesPanel({ challenges = [], tasks = [], studyLogs = [], u
       {/* Past challenges */}
       {past.length > 0 && (
         <details className="space-y-2">
-          <summary className="text-xs font-bold cursor-pointer" style={{ color: "#444" }}>
-            Past challenges ({past.length})
+          <summary className="text-xs font-bold cursor-pointer flex items-center justify-between" style={{ color: "#777" }}>
+            <span>Past challenges ({past.length})</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                handleClearAllPastChallenges();
+              }}
+              className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors ml-auto mr-2"
+            >
+              Clear past challenges
+            </button>
           </summary>
           <div className="space-y-2 mt-2">
             {past.map((c) => {
@@ -263,21 +285,31 @@ export function ChallengesPanel({ challenges = [], tasks = [], studyLogs = [], u
               const wc = winner ? USER_COLORS[winner.username.toLowerCase()] || "#666" : "#555";
               return (
                 <div key={c.id} className="card p-3 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-bold" style={{ color: "#d0d0d0" }}>{c.title}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold truncate" style={{ color: "#d0d0d0" }}>{c.title}</p>
                     <p className="text-[10px] mt-0.5" style={{ color: "#444" }}>
                       {new Date(c.start_date + "T12:00:00").toLocaleDateString("en", { month: "short", day: "numeric" })} →{" "}
                       {new Date(c.end_date   + "T12:00:00").toLocaleDateString("en", { month: "short", day: "numeric" })}
                     </p>
                   </div>
-                  {winner ? (
-                    <div className="flex items-center gap-1.5">
-                      <Trophy className="w-3 h-3" style={{ color: wc }} />
-                      <span className="text-xs font-bold capitalize" style={{ color: wc }}>{winner.username}</span>
-                    </div>
-                  ) : (
-                    <span className="text-[10px]" style={{ color: "#444" }}>No winner</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {winner ? (
+                      <div className="flex items-center gap-1.5">
+                        <Trophy className="w-3 h-3" style={{ color: wc }} />
+                        <span className="text-xs font-bold capitalize" style={{ color: wc }}>{winner.username}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px]" style={{ color: "#444" }}>No winner</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeletePastChallenge(c.id)}
+                      className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Delete past challenge"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}

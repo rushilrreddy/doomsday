@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Goal, User, Task } from "@/lib/types";
 import { CountdownClock } from "./CountdownClock";
-import { Plus, ChevronDown, Trophy, Check, X, Edit2, MoreHorizontal } from "lucide-react";
+import { Plus, ChevronDown, Trophy, Check, X, Edit2, MoreHorizontal, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 interface GoalSectionProps {
@@ -214,6 +214,18 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
     } finally { setProofLoading(false); }
   };
 
+  const handleDeletePast = async (id: string) => {
+    await supabase.from("goals").delete().eq("id", id);
+    onRefresh();
+  };
+
+  const handleClearAllPast = async () => {
+    if (!past.length) return;
+    const ids = past.map((g) => g.id);
+    await supabase.from("goals").delete().in("id", ids);
+    onRefresh();
+  };
+
   const close = () => setSheet("none");
 
   /* ─── Shared form fields renderer ─── */
@@ -339,22 +351,41 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
       )}
 
       {/* History toggle */}
-      <button onClick={() => setShowHistory(!showHistory)}
-        className="flex items-center gap-2 text-xs font-semibold w-full py-0.5"
-        style={{ color: "#555" }}>
-        <motion.div animate={{ rotate: showHistory ? 180 : 0 }}>
-          <ChevronDown className="w-4 h-4" />
-        </motion.div>
-        Past challenges ({past.length})
-        {active && (
-          <motion.button whileTap={{ scale: 0.97 }}
-            onClick={(e) => { e.stopPropagation(); openCreate(); }}
-            className="ml-auto flex items-center gap-1 text-xs font-bold"
-            style={{ color: "#f0f0f0" }}>
-            <Plus className="w-3.5 h-3.5" /> New
-          </motion.button>
-        )}
-      </button>
+      <div className="flex items-center justify-between py-0.5">
+        <button
+          type="button"
+          onClick={() => setShowHistory(!showHistory)}
+          className="flex items-center gap-2 text-xs font-semibold"
+          style={{ color: "#777" }}
+        >
+          <motion.div animate={{ rotate: showHistory ? 180 : 0 }}>
+            <ChevronDown className="w-4 h-4" />
+          </motion.div>
+          Past challenges ({past.length})
+        </button>
+
+        <div className="flex items-center gap-2">
+          {past.length > 0 && showHistory && (
+            <button
+              type="button"
+              onClick={handleClearAllPast}
+              className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors"
+            >
+              Clear all past
+            </button>
+          )}
+          {active && (
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={(e) => { e.stopPropagation(); openCreate(); }}
+              className="flex items-center gap-1 text-xs font-bold"
+              style={{ color: "#f0f0f0" }}
+            >
+              <Plus className="w-3.5 h-3.5" /> New
+            </motion.button>
+          )}
+        </div>
+      </div>
 
       <AnimatePresence>
         {showHistory && (
@@ -374,14 +405,27 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
                       {new Date(g.target_date).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
                     </p>
                   </div>
-                  <span style={{
-                    background: g.status === "achieved" ? "#0d1a10" : "#1a0d0d",
-                    color: g.status === "achieved" ? "#22c55e" : "#ef4444",
-                    border: `1px solid ${g.status === "achieved" ? "#22c55e20" : "#ef444420"}`,
-                    padding: "3px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
-                  }}>
-                    {g.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span style={{
+                      background: g.status === "achieved" ? "#0d1a10" : "#1a0d0d",
+                      color: g.status === "achieved" ? "#22c55e" : "#ef4444",
+                      border: `1px solid ${g.status === "achieved" ? "#22c55e20" : "#ef444420"}`,
+                      padding: "3px 9px", borderRadius: 999, fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+                    }}>
+                      {g.status}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePast(g.id);
+                      }}
+                      className="p-1 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                      title="Delete past challenge"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
                 {(g.proof_note || g.proof_url) && (
                   <div className="pt-2 border-t border-[#202020] space-y-2">

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { motion } from "framer-motion";
-import { Task, RoutineLog, DailyCheckin, Streak, User, StudyLog } from "@/lib/types";
+import { motion, AnimatePresence } from "framer-motion";
+import { Task, RoutineLog, DailyCheckin, Streak, User, StudyLog, BodyWeightLog } from "@/lib/types";
+import { Flame, Snowflake, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trophy, Dumbbell, BookOpen, CheckSquare, Sparkles } from "lucide-react";
 
 interface StreakCalendarProps {
   users: User[];
@@ -10,6 +11,7 @@ interface StreakCalendarProps {
   routineLogs: RoutineLog[];
   checkins: DailyCheckin[];
   studyLogs?: StudyLog[];
+  weightLogs?: BodyWeightLog[];
   streaks: Streak[];
   currentUser: User;
 }
@@ -19,206 +21,440 @@ const USER_COLORS: Record<string, string> = {
   alan: "#7c5cfc",
   kevin: "#f5c518",
 };
+
 const CREW = ["rushil", "alan", "kevin"];
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-/** Build a set of active date strings for a given user */
-function buildActivitySet(
-  userId: string,
-  tasks: Task[],
-  routineLogs: RoutineLog[],
-  checkins: DailyCheckin[],
-  studyLogs: StudyLog[] = [],
-  streak?: Streak
-): Map<string, number> {
-  const map = new Map<string, number>();
-  const add = (date: string) => map.set(date, (map.get(date) || 0) + 1);
-  tasks.filter((t) => t.user_id === userId && t.is_done && t.task_date).forEach((t) => add(t.task_date!));
-  routineLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));
-  checkins.filter((c) => c.user_id === userId).forEach((c) => add(c.checkin_date));
-  studyLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));
-  (streak?.frozen_dates || []).forEach((d) => add(d));
-  return map;
+interface DayDetail {
+  tasksCount: number;
+  studyMinutes: number;
+  gymCount: number;
+  routineCount: number;
+  checkinCount: number;
+  isFrozen: boolean;
+  isActive: boolean;
 }
 
-/** Get last N days as "YYYY-MM-DD" array, newest last */
-function getLastNDays(n: number): string[] {
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (n - 1 - i));
-    return d.toISOString().split("T")[0];
-  });
-}
+export function StreakCalendar({
+  users = [],
+  tasks = [],
+  routineLogs = [],
+  checkins = [],
+  studyLogs = [],
+  weightLogs = [],
+  streaks = [],
+  currentUser,
+}: StreakCalendarProps) {
+  const [selectedUserKey, setSelectedUserKey] = useState(currentUser.username.toLowerCase());
+  const [currentDate, setCurrentDate] = useState(() => new Date());
+  const [selectedDayDetail, setSelectedDayDetail] = useState<{ dateStr: string; detail: DayDetail } | null>(null);
 
-export function StreakCalendar({ users, tasks, routineLogs, checkins, studyLogs = [], streaks, currentUser }: StreakCalendarProps) {
-  const [selected, setSelected] = useState(currentUser.username.toLowerCase());
-  const color = USER_COLORS[selected] || "#22c55e";
+  const safeUsers = users || [];
+  const safeTasks = tasks || [];
+  const safeRoutines = routineLogs || [];
+  const safeCheckins = checkins || [];
+  const safeStudy = studyLogs || [];
+  const safeWeight = weightLogs || [];
+  const safeStreaks = streaks || [];
 
-  const selectedUser = users.find((u) => u.username.toLowerCase() === selected);
-  const streak = streaks.find((s) => s.user_id === selectedUser?.id);
+  const selectedUser = safeUsers.find((u) => u && u.username && u.username.toLowerCase() === selectedUserKey) || currentUser;
+  const userColor = USER_COLORS[selectedUserKey] || "#22c55e";
+  const userStreak = safeStreaks.find((s) => s && s.user_id === selectedUser?.id);
 
-  // 91 days = 13 weeks
-  const days = useMemo(() => getLastNDays(91), []);
-  const todayStr = new Date().toISOString().split("T")[0];
+  // Month navigation
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth(); // 0-indexed
 
-  const activityMap = useMemo(
-    () => selectedUser ? buildActivitySet(selectedUser.id, tasks, routineLogs, checkins, studyLogs, streak) : new Map(),
-    [selectedUser, tasks, routineLogs, checkins, studyLogs, streak]
-  );
+  const monthName = currentDate.toLocaleString("en-US", { month: "long" });
 
-  // Group by week (7 days per column, starting Monday)
-  // We'll display 13 columns × 7 rows
-  // Pad start with empty cells so week starts on Mon
-  const firstDay = new Date(days[0] + "T12:00:00");
-  const dayOfWeek = (firstDay.getDay() + 6) % 7; // 0=Mon
-  const paddedDays: (string | null)[] = [
-    ...Array(dayOfWeek).fill(null),
-    ...days,
-  ];
-  // Chunk into weeks
-  const weeks: (string | null)[][] = [];
-  for (let i = 0; i < paddedDays.length; i += 7) {
-    weeks.push(paddedDays.slice(i, i + 7));
-  }
-
-  const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
-
-  const getCell = (dateStr: string | null) => {
-    if (!dateStr) return { bg: "transparent", border: "transparent", isToday: false, count: 0 };
-    const count = activityMap.get(dateStr) || 0;
-    const isToday = dateStr === todayStr;
-    let bg = "#1a1a1a";
-    if (count >= 1) bg = `${color}30`;
-    if (count >= 3) bg = `${color}60`;
-    if (count >= 5) bg = color;
-    return { bg, border: isToday ? color : "transparent", isToday, count };
+  const prevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+    setSelectedDayDetail(null);
   };
 
-  // Calculate active streak from the heatmap
-  let calStreak = 0;
-  const reverseDays = [...days].reverse();
-  for (const d of reverseDays) {
-    if (d === todayStr && activityMap.get(d) === 0) continue; // allow today to be 0
-    if (activityMap.get(d)) calStreak++;
-    else break;
-  }
+  const nextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+    setSelectedDayDetail(null);
+  };
+
+  const jumpToCurrentMonth = () => {
+    setCurrentDate(new Date());
+    setSelectedDayDetail(null);
+  };
+
+  // Build a detailed map for the selected user: dateStr => DayDetail
+  const activityMap = useMemo(() => {
+    const map = new Map<string, DayDetail>();
+    if (!selectedUser) return map;
+    const uid = selectedUser.id;
+
+    const getOrInit = (date: string): DayDetail => {
+      let existing = map.get(date);
+      if (!existing) {
+        existing = {
+          tasksCount: 0,
+          studyMinutes: 0,
+          gymCount: 0,
+          routineCount: 0,
+          checkinCount: 0,
+          isFrozen: false,
+          isActive: false,
+        };
+        map.set(date, existing);
+      }
+      return existing;
+    };
+
+    safeTasks.filter((t) => t && t.user_id === uid && t.is_done && t.task_date).forEach((t) => {
+      const d = getOrInit(t.task_date!);
+      d.tasksCount++;
+      d.isActive = true;
+    });
+
+    safeRoutines.filter((l) => l && l.user_id === uid && l.log_date).forEach((l) => {
+      const d = getOrInit(l.log_date);
+      d.routineCount++;
+      d.isActive = true;
+    });
+
+    safeCheckins.filter((c) => c && c.user_id === uid && c.checkin_date).forEach((c) => {
+      const d = getOrInit(c.checkin_date);
+      d.checkinCount++;
+      d.isActive = true;
+    });
+
+    safeStudy.filter((s) => s && s.user_id === uid && s.log_date).forEach((s) => {
+      const d = getOrInit(s.log_date);
+      d.studyMinutes += (s.duration_minutes || 0);
+      d.isActive = true;
+    });
+
+    safeWeight.filter((w) => w && w.user_id === uid && w.log_date).forEach((w) => {
+      const d = getOrInit(w.log_date);
+      d.gymCount++;
+      d.isActive = true;
+    });
+
+    (userStreak?.frozen_dates || []).forEach((fDate) => {
+      const d = getOrInit(fDate);
+      d.isFrozen = true;
+      d.isActive = true;
+    });
+
+    return map;
+  }, [selectedUser, safeTasks, safeRoutines, safeCheckins, safeStudy, safeWeight, userStreak]);
+
+  // Calendar Grid generation for current month
+  const calendarDays = useMemo(() => {
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const totalDaysInMonth = lastDayOfMonth.getDate();
+
+    // Monday as first day of week: 0=Mon, 6=Sun
+    const startingDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
+
+    const days: ({ dayNum: number; dateStr: string; isCurrentMonth: boolean } | null)[] = [];
+
+    // Empty cells before start of month
+    for (let i = 0; i < startingDayOfWeek; i++) {
+      days.push(null);
+    }
+
+    // Actual days of the month
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const monthPadded = String(month + 1).padStart(2, "0");
+      const dayPadded = String(day).padStart(2, "0");
+      const dateStr = `${year}-${monthPadded}-${dayPadded}`;
+      days.push({
+        dayNum: day,
+        dateStr,
+        isCurrentMonth: true,
+      });
+    }
+
+    return days;
+  }, [year, month]);
+
+  const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  // Stats for the currently viewed month
+  const monthStats = useMemo(() => {
+    let activeDaysCount = 0;
+    const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let day = 1; day <= totalDaysInMonth; day++) {
+      const monthPadded = String(month + 1).padStart(2, "0");
+      const dayPadded = String(day).padStart(2, "0");
+      const dateStr = `${year}-${monthPadded}-${dayPadded}`;
+      const detail = activityMap.get(dateStr);
+      if (detail && detail.isActive) {
+        activeDaysCount++;
+      }
+    }
+
+    const pct = Math.round((activeDaysCount / totalDaysInMonth) * 100);
+    return { activeDaysCount, totalDaysInMonth, pct };
+  }, [year, month, activityMap]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-black" style={{ color: "#f0f0f0" }}>Streak Calendar</h2>
-        <p className="section-title">Last 13 weeks</p>
-      </div>
+    <div
+      className="card p-4 space-y-4 relative overflow-hidden"
+      style={{
+        background: "linear-gradient(135deg, #13141c, #0b0c10)",
+        border: "1px solid rgba(245, 197, 24, 0.25)",
+        boxShadow: "0 10px 30px -10px rgba(0, 0, 0, 0.8)",
+      }}
+    >
+      {/* Background glow */}
+      <div
+        className="absolute top-0 right-0 w-44 h-44 rounded-full pointer-events-none"
+        style={{ background: `${userColor}10`, filter: "blur(50px)" }}
+      />
 
-      {/* Friend tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-        {CREW.map((uname) => {
-          const c = USER_COLORS[uname];
-          const active = selected === uname;
-          return (
-            <motion.button key={uname} whileTap={{ scale: 0.95 }}
-              onClick={() => setSelected(uname)}
-              className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-bold capitalize"
-              style={{
-                background: active ? `${c}15` : "#161616",
-                border: active ? `1px solid ${c}35` : "1px solid #222",
-                color: active ? c : "#666",
-              }}>
-              {uname}
-            </motion.button>
-          );
-        })}
-      </div>
-
-      {/* Streak badges */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <div className="card p-3.5 text-center space-y-1">
-          <p className="text-2xl font-black" style={{ color }}>
-            {streak?.current_streak || 0}
-            <span className="text-lg ml-1">🔥</span>
-          </p>
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#444" }}>Current streak</p>
-        </div>
-        <div className="card p-3.5 text-center space-y-1">
-          <p className="text-2xl font-black" style={{ color: "#888" }}>
-            {streak?.longest_streak || 0}
-            <span className="text-lg ml-1">⚡</span>
-          </p>
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "#444" }}>Best streak</p>
-        </div>
-      </div>
-
-      {/* Heatmap grid */}
-      <div className="card p-4 overflow-x-auto">
-        <div className="flex gap-1.5" style={{ minWidth: "fit-content" }}>
-          {/* Day labels column */}
-          <div className="flex flex-col gap-1 mr-1" style={{ paddingTop: 20 }}>
-            {DAY_LABELS.map((l, i) => (
-              <div key={i} className="w-4 h-4 flex items-center justify-center">
-                <span className="text-[8px] font-bold" style={{ color: "#333" }}>{l}</span>
-              </div>
-            ))}
+      {/* Header with Title & Member Selector */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-amber-400"
+            style={{ background: "rgba(245, 197, 24, 0.15)", border: "1px solid rgba(245, 197, 24, 0.3)" }}
+          >
+            <Flame className="w-4 h-4" />
           </div>
+          <div>
+            <h3 className="text-sm font-black text-white">Monthly Streaks Calendar</h3>
+            <p className="text-[10px] text-gray-400">Track daily consistency with fire icons</p>
+          </div>
+        </div>
 
-          {/* Week columns */}
-          {weeks.map((week, wi) => {
-            // Month label: show if the first non-null cell in this week changes month
-            const firstDate = week.find((d) => d !== null);
-            const prevWeekFirst = wi > 0 ? weeks[wi - 1].find((d) => d !== null) : null;
-            const showMonth = firstDate && (!prevWeekFirst ||
-              new Date(firstDate + "T12:00:00").getMonth() !== new Date(prevWeekFirst + "T12:00:00").getMonth());
-            const monthLabel = firstDate
-              ? new Date(firstDate + "T12:00:00").toLocaleDateString("en", { month: "short" })
-              : "";
-
+        {/* Member Selector Chips */}
+        <div className="flex gap-1">
+          {CREW.map((uname) => {
+            const active = selectedUserKey === uname;
+            const uColor = USER_COLORS[uname];
             return (
-              <div key={wi} className="flex flex-col gap-1">
-                {/* Month label */}
-                <div className="h-4 flex items-end">
-                  {showMonth && (
-                    <span className="text-[8px] font-bold" style={{ color: "#444" }}>{monthLabel}</span>
-                  )}
-                </div>
-                {week.map((dateStr, di) => {
-                  if (!dateStr) {
-                    return <div key={di} className="w-4 h-4 rounded-sm" style={{ opacity: 0 }} />;
-                  }
-                  const { bg, border, isToday, count } = getCell(dateStr);
-                  return (
-                    <motion.div
-                      key={di}
-                      whileHover={{ scale: 1.3 }}
-                      className="w-4 h-4 rounded-sm relative flex items-center justify-center"
-                      style={{
-                        background: bg,
-                        border: `1px solid ${border}`,
-                        outline: isToday ? `2px solid ${color}` : "none",
-                        outlineOffset: isToday ? 1 : 0,
-                      }}
-                      title={`${dateStr}: ${count} activities`}
-                    >
-                      {count > 0 && (
-                        <span style={{ fontSize: 8, lineHeight: 1 }}>🔥</span>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
+              <button
+                key={uname}
+                type="button"
+                onClick={() => {
+                  setSelectedUserKey(uname);
+                  setSelectedDayDetail(null);
+                }}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold capitalize transition-all"
+                style={{
+                  background: active ? `${uColor}25` : "rgba(255,255,255,0.04)",
+                  color: active ? "#ffffff" : "#777",
+                  border: `1px solid ${active ? uColor : "rgba(255,255,255,0.06)"}`,
+                }}
+              >
+                {uname}
+              </button>
             );
           })}
         </div>
+      </div>
 
-        {/* Legend */}
-        <div className="flex items-center gap-2 mt-3 justify-end">
-          <span className="text-[9px]" style={{ color: "#444" }}>Less</span>
-          {[0, 1, 3, 5].map((n) => (
-            <div key={n} className="w-3 h-3 rounded-sm"
-              style={{
-                background: n === 0 ? "#1a1a1a" : n === 1 ? `${color}30` : n === 3 ? `${color}60` : color,
-              }} />
-          ))}
-          <span className="text-[9px]" style={{ color: "#444" }}>More</span>
+      {/* Summary Scoreboard Bar */}
+      <div className="grid grid-cols-4 gap-2 p-2.5 rounded-2xl bg-black/40 border border-white/5 text-center">
+        <div>
+          <p className="text-[9px] font-bold text-gray-400 uppercase">Streak</p>
+          <div className="flex items-center justify-center gap-1 mt-0.5">
+            <Flame className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-xs font-black text-white">{userStreak?.current_streak || 0}d</span>
+          </div>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold text-gray-400 uppercase">Best</p>
+          <div className="flex items-center justify-center gap-1 mt-0.5">
+            <Trophy className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-xs font-black text-white">{userStreak?.longest_streak || 0}d</span>
+          </div>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold text-gray-400 uppercase">Active Days</p>
+          <div className="flex items-center justify-center gap-1 mt-0.5">
+            <CalendarIcon className="w-3.5 h-3.5 text-sky-400" />
+            <span className="text-xs font-black text-white">{monthStats.activeDaysCount}/{monthStats.totalDaysInMonth}</span>
+          </div>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold text-gray-400 uppercase">Consistency</p>
+          <div className="flex items-center justify-center gap-1 mt-0.5">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="text-xs font-black text-emerald-400">{monthStats.pct}%</span>
+          </div>
         </div>
       </div>
+
+      {/* Month Navigator Controls */}
+      <div className="flex items-center justify-between px-1">
+        <button
+          type="button"
+          onClick={prevMonth}
+          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+          title="Previous Month"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-black text-white tracking-wide">
+            {monthName} {year}
+          </span>
+          <button
+            type="button"
+            onClick={jumpToCurrentMonth}
+            className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/10 text-gray-300 hover:bg-white/20"
+          >
+            Today
+          </button>
+        </div>
+
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+          title="Next Month"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="space-y-1">
+        {/* Day Name Headers */}
+        <div className="grid grid-cols-7 gap-1 text-center pb-1">
+          {DAY_NAMES.map((name) => (
+            <span key={name} className="text-[10px] font-bold text-gray-500">
+              {name}
+            </span>
+          ))}
+        </div>
+
+        {/* Day Cells (7-column grid) */}
+        <div className="grid grid-cols-7 gap-1.5">
+          {calendarDays.map((cell, idx) => {
+            if (!cell) {
+              return <div key={`empty-${idx}`} className="h-12 rounded-xl bg-white/[0.01]" />;
+            }
+
+            const isToday = cell.dateStr === todayStr;
+            const detail = activityMap.get(cell.dateStr);
+            const isActive = Boolean(detail?.isActive);
+            const isFrozen = Boolean(detail?.isFrozen);
+            const isSelected = selectedDayDetail?.dateStr === cell.dateStr;
+
+            return (
+              <motion.button
+                key={cell.dateStr}
+                type="button"
+                whileTap={{ scale: 0.9 }}
+                onClick={() => detail && setSelectedDayDetail({ dateStr: cell.dateStr, detail })}
+                className="h-12 rounded-xl flex flex-col items-center justify-between p-1 transition-all relative overflow-hidden"
+                style={{
+                  background: isSelected
+                    ? "rgba(245, 197, 24, 0.25)"
+                    : isActive
+                    ? "linear-gradient(180deg, #1f1710, #161219)"
+                    : "rgba(255, 255, 255, 0.03)",
+                  border: `1.5px solid ${
+                    isSelected
+                      ? "#f5c518"
+                      : isToday
+                      ? userColor
+                      : isActive
+                      ? "rgba(245, 197, 24, 0.35)"
+                      : "rgba(255, 255, 255, 0.05)"
+                  }`,
+                  boxShadow: isActive ? "0 0 10px -3px rgba(245, 197, 24, 0.2)" : "none",
+                }}
+              >
+                {/* Day number */}
+                <span
+                  className="text-[10px] font-bold leading-none"
+                  style={{
+                    color: isToday ? userColor : isActive ? "#ffffff" : "#666670",
+                  }}
+                >
+                  {cell.dayNum}
+                </span>
+
+                {/* Fire or Snowflake Symbol */}
+                {isFrozen ? (
+                  <Snowflake className="w-4 h-4 text-cyan-400 shrink-0 mb-0.5" />
+                ) : isActive ? (
+                  <motion.div
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="shrink-0"
+                  >
+                    <Flame className="w-4 h-4 text-amber-400 fill-amber-400 drop-shadow-[0_0_6px_rgba(245,197,24,0.6)]" />
+                  </motion.div>
+                ) : (
+                  <div className="w-1.5 h-1.5 rounded-full bg-white/5 mb-1" />
+                )}
+              </motion.button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Selected Day Activity Details Sheet */}
+      <AnimatePresence>
+        {selectedDayDetail && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="p-3 rounded-2xl bg-black/60 border border-amber-500/30 space-y-2 text-xs overflow-hidden"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+              <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                <Flame className="w-3.5 h-3.5" /> {selectedDayDetail.dateStr} Activity
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedDayDetail(null)}
+                className="text-[10px] text-gray-400 hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+              {selectedDayDetail.detail.tasksCount > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <CheckSquare className="w-3 h-3 text-emerald-400" />
+                  <span>{selectedDayDetail.detail.tasksCount} Tasks Done</span>
+                </div>
+              )}
+              {selectedDayDetail.detail.studyMinutes > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="w-3 h-3 text-indigo-400" />
+                  <span>{selectedDayDetail.detail.studyMinutes}m Study Time</span>
+                </div>
+              )}
+              {selectedDayDetail.detail.gymCount > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Dumbbell className="w-3 h-3 text-pink-400" />
+                  <span>Gym Workout Logged</span>
+                </div>
+              )}
+              {selectedDayDetail.detail.routineCount > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  <span>{selectedDayDetail.detail.routineCount} Habits Completed</span>
+                </div>
+              )}
+              {selectedDayDetail.detail.isFrozen && (
+                <div className="flex items-center gap-1.5 text-cyan-400">
+                  <Snowflake className="w-3 h-3" />
+                  <span>Streak Protected by Freeze</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
