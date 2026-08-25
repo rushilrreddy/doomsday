@@ -54,7 +54,7 @@ export function CrewRankHistory({ users = [], tasks = [], studyLogs = [] }: Crew
       const scores: Record<string, number> = {};
       safeUsers.forEach((u) => {
         if (!u) return;
-        const uTasks = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date >= monStr && t.task_date <= sunStr).length;
+        const uTasks = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date && t.task_date >= monStr && t.task_date <= sunStr).length;
         const uProblems = safeStudy
           .filter((l) => l && l.user_id === u.id && l.category === "dsa" && l.log_date >= monStr && l.log_date <= sunStr)
           .reduce((acc, l) => acc + (l.problems_solved || 0), 0);

@@ -137,8 +137,8 @@ export function AnalyticsDashboard({ currentUser, users = [], tasks = [], studyL
     const d30 = new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0];
     const d60 = new Date(now.getTime() - 60 * 86400000).toISOString().split("T")[0];
 
-    const currentPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date >= d30);
-    const prevPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date >= d60 && t.task_date < d30);
+    const currentPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date && t.task_date >= d30);
+    const prevPeriodTasks = safeTasks.filter((t) => t && t.user_id === activeUser.id && t.task_date && t.task_date >= d60 && t.task_date < d30);
 
     const currentDone = currentPeriodTasks.filter((t) => t.is_done).length;
     const currentRate = currentPeriodTasks.length > 0 ? Math.round((currentDone / currentPeriodTasks.length) * 100) : 0;

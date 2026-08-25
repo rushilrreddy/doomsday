@@ -96,6 +96,7 @@ export function AchievementsPanel({ tasks = [], studyLogs = [], goals = [], stre
     // Perfect day — any date where all tasks were done
     const tasksByDate = myTasks.reduce<Record<string, { total: number; done: number }>>(
       (acc, t) => {
+        if (!t.task_date) return acc;
         if (!acc[t.task_date]) acc[t.task_date] = { total: 0, done: 0 };
         acc[t.task_date].total++;
         if (t.is_done) acc[t.task_date].done++;

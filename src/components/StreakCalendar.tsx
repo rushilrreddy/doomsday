@@ -32,7 +32,7 @@ function buildActivitySet(
 ): Map<string, number> {
   const map = new Map<string, number>();
   const add = (date: string) => map.set(date, (map.get(date) || 0) + 1);
-  tasks.filter((t) => t.user_id === userId && t.is_done).forEach((t) => add(t.task_date));
+  tasks.filter((t) => t.user_id === userId && t.is_done && t.task_date).forEach((t) => add(t.task_date!));
   routineLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));
   checkins.filter((c) => c.user_id === userId).forEach((c) => add(c.checkin_date));
   studyLogs.filter((l) => l.user_id === userId).forEach((l) => add(l.log_date));

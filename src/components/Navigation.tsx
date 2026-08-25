@@ -3,17 +3,16 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { User } from "@/lib/types";
-import { Home, CheckSquare, BookOpen, Settings, LogOut, Repeat2, BarChart2, GraduationCap } from "lucide-react";
+import { Home, CheckSquare, GraduationCap, BarChart2, Settings, Shield } from "lucide-react";
 
-export type TabType = "countdown" | "tasks" | "routines" | "study" | "stats" | "notes";
+export type TabType = "countdown" | "tasks" | "study" | "stats" | "settings";
 
 const TABS = [
-  { id: "countdown" as TabType, icon: Home,           label: "Home"    },
-  { id: "tasks"     as TabType, icon: CheckSquare,    label: "Tasks"   },
-  { id: "routines"  as TabType, icon: Repeat2,        label: "Routines"},
-  { id: "study"     as TabType, icon: GraduationCap,  label: "Study"   },
-  { id: "stats"     as TabType, icon: BarChart2,      label: "Stats"   },
-  { id: "notes"     as TabType, icon: BookOpen,       label: "Notes"   },
+  { id: "countdown" as TabType, icon: Home,          label: "Home"     },
+  { id: "tasks"     as TabType, icon: CheckSquare,   label: "Execution"},
+  { id: "study"     as TabType, icon: GraduationCap, label: "Study"    },
+  { id: "stats"     as TabType, icon: BarChart2,     label: "Analytics"},
+  { id: "settings"  as TabType, icon: Settings,      label: "Settings" },
 ];
 
 const USER_COLORS: Record<string, string> = {
@@ -27,20 +26,24 @@ interface NavigationProps {
   setActiveTab: (tab: TabType) => void;
   currentUser: User;
   level?: number;
-  freezeTokens?: number;
   onOpenAdmin: () => void;
   onLogout: () => void;
 }
 
-export function Navigation({ activeTab, setActiveTab, currentUser, level, freezeTokens, onOpenAdmin, onLogout }: NavigationProps) {
+export function Navigation({ activeTab, setActiveTab, currentUser, level, onOpenAdmin, onLogout }: NavigationProps) {
   const color = USER_COLORS[currentUser.username.toLowerCase()] || "#888";
+  const isLeader = currentUser.username.toLowerCase() === "rushil" || currentUser.role === "leader";
 
   return (
     <>
       {/* Top Header */}
       <header
         className="sticky top-0 z-40 px-5 py-3.5"
-        style={{ background: "#0a0a0a", borderBottom: "1px solid #161616" }}
+        style={{
+          background: "rgba(10, 10, 12, 0.95)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.07)",
+        }}
       >
         <div className="max-w-md mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -52,41 +55,41 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, freeze
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <p className="text-sm font-bold capitalize leading-tight" style={{ color: "#f0f0f0" }}>
+                <p className="text-sm font-bold capitalize leading-tight text-white">
                   {currentUser.username}
                 </p>
                 {level !== undefined && (
-                  <span className="text-[9px] font-black px-1.5 py-0.2 rounded-md"
-                    style={{ background: "#7c5cfc25", color: "#7c5cfc" }}>
+                  <span
+                    className="text-[9px] font-black px-1.5 py-0.2 rounded-md"
+                    style={{ background: "#7c5cfc25", color: "#a78bfa" }}
+                  >
                     Lv.{level}
                   </span>
                 )}
               </div>
-              <p className="text-[10px]" style={{ color: "#555" }}>
-                {currentUser.role === "leader" ? "Leader" : "Member"}
+              <p className="text-[10px] text-gray-500 font-medium">
+                {isLeader ? "Crew Leader" : "Crew Member"}
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            {currentUser.role === "leader" && (
-              <motion.button whileTap={{ scale: 0.92 }} onClick={onOpenAdmin} className="btn-ghost" title="Admin">
-                <Settings style={{ width: 18, height: 18 }} />
-              </motion.button>
+          <div className="flex items-center gap-1.5">
+            {isLeader && (
+              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg border border-emerald-500/20 flex items-center gap-1">
+                <Shield className="w-3 h-3" /> Master
+              </span>
             )}
-            <motion.button whileTap={{ scale: 0.92 }} onClick={onLogout} className="btn-ghost" title="Logout">
-              <LogOut style={{ width: 18, height: 18 }} />
-            </motion.button>
           </div>
         </div>
       </header>
 
-      {/* Bottom nav — 5 tabs */}
+      {/* Bottom Nav Bar — 5 Clean Tabs */}
       <nav
         className="fixed bottom-0 left-0 right-0 z-40 px-2 py-2"
         style={{
-          background: "#0a0a0a",
-          borderTop: "1px solid #161616",
+          background: "rgba(10, 10, 12, 0.96)",
+          backdropFilter: "blur(16px)",
+          borderTop: "1px solid rgba(255, 255, 255, 0.08)",
           paddingBottom: "calc(8px + env(safe-area-inset-bottom, 0px))",
         }}
       >
@@ -97,29 +100,37 @@ export function Navigation({ activeTab, setActiveTab, currentUser, level, freeze
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className="relative flex flex-col items-center gap-0.5 py-1.5 px-3"
+                className="relative flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition-colors"
               >
                 {active && (
                   <motion.div
                     layoutId="tab-indicator"
                     className="absolute inset-0 rounded-2xl"
-                    style={{ background: "#1c1c1c" }}
+                    style={{ background: "rgba(255, 255, 255, 0.08)" }}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
                   />
                 )}
                 <Icon
                   style={{
-                    width: 17, height: 17,
-                    color: active ? "#f0f0f0" : "#3a3a3a",
-                    position: "relative", zIndex: 1,
+                    width: 18,
+                    height: 18,
+                    color: active ? "#ffffff" : "#666670",
+                    position: "relative",
+                    zIndex: 1,
                   }}
                 />
-                <span style={{
-                  fontSize: 8, fontWeight: active ? 700 : 500,
-                  color: active ? "#f0f0f0" : "#3a3a3a",
-                  position: "relative", zIndex: 1, letterSpacing: "0.03em",
-                }}>
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? "#ffffff" : "#666670",
+                    position: "relative",
+                    zIndex: 1,
+                    letterSpacing: "0.02em",
+                  }}
+                >
                   {tab.label}
                 </span>
               </button>

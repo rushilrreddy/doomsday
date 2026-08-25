@@ -62,9 +62,9 @@ export function RecordsLeaderboard({ users = [], tasks = [], studyLogs = [], str
 
     // 4. Most tasks completed in a single day
     const tasksByDayUser: Record<string, { count: number; userId: string; date: string }> = {};
-    safeTasks.filter((t) => t && t.is_done).forEach((t) => {
+    safeTasks.filter((t) => t && t.is_done && t.task_date).forEach((t) => {
       const key = `${t.user_id}_${t.task_date}`;
-      if (!tasksByDayUser[key]) tasksByDayUser[key] = { count: 0, userId: t.user_id, date: t.task_date };
+      if (!tasksByDayUser[key]) tasksByDayUser[key] = { count: 0, userId: t.user_id, date: t.task_date! };
       tasksByDayUser[key].count++;
     });
     const maxTaskDay = Object.values(tasksByDayUser).sort((a, b) => b.count - a.count)[0] || {

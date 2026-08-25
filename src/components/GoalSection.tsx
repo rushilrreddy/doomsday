@@ -287,7 +287,8 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
             const end   = new Date(active.target_date).getTime();
             const timePct = Math.min(Math.round(((now - start) / (end - start)) * 100), 100);
 
-            const goalTasks = tasks.filter((t) => {
+            const goalTasks = (tasks || []).filter((t) => {
+              if (!t || !t.task_date) return false;
               const td = new Date(t.task_date);
               return td >= new Date(start) && td <= new Date(end);
             });
@@ -316,31 +317,11 @@ export function GoalSection({ goals, tasks, currentUser, onRefresh }: GoalSectio
             title={active.title}
             stake={active.stake}
             status={active.status}
+            onMarkAchieved={() => handleStatus(active.id, "achieved")}
+            onEdit={openEdit}
+            onMarkFailed={() => handleStatus(active.id, "failed")}
+            onNewChallenge={openCreate}
           />
-
-          {/* 3-button action row */}
-          <div className="grid grid-cols-3 gap-2">
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => handleStatus(active.id, "achieved")}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold"
-              style={{ background: "#0d1a10", border: "1px solid #22c55e25", color: "#22c55e" }}>
-              <Check className="w-3.5 h-3.5" /> Achieved
-            </motion.button>
-
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => setSheet("options")}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold"
-              style={{ background: "#1c1c1c", border: "1px solid #2a2a2a", color: "#888" }}>
-              <MoreHorizontal className="w-3.5 h-3.5" /> Options
-            </motion.button>
-
-            <motion.button whileTap={{ scale: 0.97 }}
-              onClick={() => handleStatus(active.id, "failed")}
-              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold"
-              style={{ background: "#1a0d0d", border: "1px solid #ef444425", color: "#ef4444" }}>
-              <X className="w-3.5 h-3.5" /> Failed
-            </motion.button>
-          </div>
         </>
       ) : (
         <div className="card p-7 text-center space-y-3">

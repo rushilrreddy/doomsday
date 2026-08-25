@@ -67,7 +67,7 @@ export function ChallengesPanel({ challenges = [], tasks = [], studyLogs = [], u
           .reduce((s, l) => s + (l.duration_minutes || 0), 0);
       } else if (c.metric === "tasks_done") {
         const safeTasks = tasks || [];
-        score = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date >= c.start_date && t.task_date <= c.end_date).length;
+        score = safeTasks.filter((t) => t && t.user_id === u.id && t.is_done && t.task_date && t.task_date >= c.start_date && t.task_date <= c.end_date).length;
       }
       return { user: u, score };
     }).sort((a, b) => b.score - a.score);

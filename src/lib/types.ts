@@ -57,6 +57,7 @@ export interface Routine {
   title: string;
   emoji: string;
   description: string | null;
+  reminder_time?: string | null;
   is_public: boolean;
   created_at: string;
 }
@@ -121,7 +122,8 @@ export interface Task {
   user_id: string;
   title: string;
   is_done: boolean;
-  task_date: string;
+  task_date?: string | null;
+  due_time?: string | null;
   sort_order: number;
   created_at: string;
 }
