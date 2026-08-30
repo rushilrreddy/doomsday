@@ -298,6 +298,72 @@ export function StreakCalendar({
     return `In ${diff} days`;
   };
 
+  const navigateDetailDay = (offset: number) => {
+    if (!selectedDayDetail) return;
+    const d = new Date(selectedDayDetail.dateStr + "T12:00:00");
+    d.setDate(d.getDate() + offset);
+    const nextDateStr = d.toISOString().split("T")[0];
+    const nextDetail = activityMap.get(nextDateStr) || {
+      tasksCount: 0,
+      studyMinutes: 0,
+      gymCount: 0,
+      routineCount: 0,
+      checkinCount: 0,
+      isFrozen: false,
+      isActive: false,
+      dayEvents: [],
+      dayTasks: [],
+      dayRoutines: [],
+    };
+    setSelectedDayDetail({ dateStr: nextDateStr, detail: nextDetail });
+  };
+
+  const [newDayTaskTitle, setNewDayTaskTitle] = useState("");
+  const [addingTask, setAddingTask] = useState(false);
+
+  const handleToggleTask = async (task: Task) => {
+    const newStatus = !task.is_done;
+    await supabase.from("tasks").update({ is_done: newStatus }).eq("id", task.id);
+    if (onRefreshEvents) onRefreshEvents();
+  };
+
+  const handleToggleRoutine = async (routineId: string, logDate: string) => {
+    if (!selectedUser) return;
+    const existing = safeRoutineLogs.find(
+      (l) => l.routine_id === routineId && l.user_id === selectedUser.id && l.log_date === logDate
+    );
+    if (existing) {
+      await supabase.from("routine_logs").delete().eq("id", existing.id);
+    } else {
+      await supabase.from("routine_logs").insert([
+        { routine_id: routineId, user_id: selectedUser.id, log_date: logDate },
+      ]);
+    }
+    if (onRefreshEvents) onRefreshEvents();
+  };
+
+  const handleAddDayTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDayTaskTitle.trim() || !selectedUser || !selectedDayDetail) return;
+    setAddingTask(true);
+    try {
+      await supabase.from("tasks").insert([
+        {
+          title: newDayTaskTitle.trim(),
+          user_id: selectedUser.id,
+          is_done: false,
+          task_date: selectedDayDetail.dateStr,
+        },
+      ]);
+      setNewDayTaskTitle("");
+      if (onRefreshEvents) onRefreshEvents();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingTask(false);
+    }
+  };
+
   return (
     <div
       className="card p-4 space-y-4 relative overflow-hidden"
@@ -498,14 +564,49 @@ export function StreakCalendar({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={nextMonth}
-          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
-          title="Next Month"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={prevMonth}
+            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+            title="Previous Month"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={jumpToCurrentMonth}
+            className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 text-[11px] font-bold text-gray-300 hover:text-white transition-colors"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={nextMonth}
+            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+            title="Next Month"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Legend & Summary of Month */}
+      <div className="flex items-center justify-between flex-wrap gap-2 px-1 text-[10px] text-gray-400">
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-400" /> Tasks Done
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-purple-400" /> Habits Done
+          </span>
+          <span className="flex items-center gap-1">
+            <Flame className="w-3 h-3 text-amber-400" /> Streak Day
+          </span>
+        </div>
+        <span className="font-semibold text-gray-400">
+          {monthStats.activeDaysCount}/{monthStats.totalDaysInMonth} active days ({monthStats.pct}%)
+        </span>
       </div>
 
       {/* Calendar Grid */}
@@ -523,11 +624,14 @@ export function StreakCalendar({
         <div className="grid grid-cols-7 gap-1.5">
           {calendarDays.map((cell, idx) => {
             if (!cell) {
-              return <div key={`empty-${idx}`} className="h-13 rounded-xl bg-white/[0.01]" />;
+              return <div key={`empty-${idx}`} className="h-14 rounded-xl bg-white/[0.01]" />;
             }
 
             const isToday = cell.dateStr === todayStr;
             const detail = activityMap.get(cell.dateStr);
+            const tasksDone = detail?.tasksCount || 0;
+            const habitsDone = detail?.routineCount || 0;
+            const hasTasksOrHabits = tasksDone > 0 || habitsDone > 0;
             const isActive = Boolean(detail?.isActive);
             const isFrozen = Boolean(detail?.isFrozen);
             const hasEvents = (detail?.dayEvents || []).length > 0;
@@ -538,13 +642,29 @@ export function StreakCalendar({
                 key={cell.dateStr}
                 type="button"
                 whileTap={{ scale: 0.9 }}
-                onClick={() => detail && setSelectedDayDetail({ dateStr: cell.dateStr, detail })}
-                className="h-13 rounded-xl flex flex-col items-center justify-between p-1 transition-all relative overflow-hidden"
+                onClick={() => {
+                  const dayDet = detail || {
+                    tasksCount: 0,
+                    studyMinutes: 0,
+                    gymCount: 0,
+                    routineCount: 0,
+                    checkinCount: 0,
+                    isFrozen: false,
+                    isActive: false,
+                    dayEvents: [],
+                    dayTasks: [],
+                    dayRoutines: [],
+                  };
+                  setSelectedDayDetail({ dateStr: cell.dateStr, detail: dayDet });
+                }}
+                className="h-14 rounded-xl flex flex-col items-center justify-between p-1 transition-all relative overflow-hidden"
                 style={{
                   background: isSelected
                     ? "rgba(245, 197, 24, 0.25)"
                     : hasEvents
                     ? "linear-gradient(180deg, #24160d, #141118)"
+                    : hasTasksOrHabits
+                    ? "linear-gradient(180deg, #181d19, #131218)"
                     : isActive
                     ? "linear-gradient(180deg, #1f1710, #161219)"
                     : "rgba(255, 255, 255, 0.03)",
@@ -555,14 +675,16 @@ export function StreakCalendar({
                       ? userColor
                       : hasEvents
                       ? "#f59e0b"
+                      : hasTasksOrHabits
+                      ? "rgba(124, 92, 252, 0.35)"
                       : isActive
                       ? "rgba(245, 197, 24, 0.35)"
                       : "rgba(255, 255, 255, 0.05)"
                   }`,
                   boxShadow: hasEvents
                     ? "0 0 10px -2px rgba(245, 158, 11, 0.4)"
-                    : isActive
-                    ? "0 0 10px -3px rgba(245, 197, 24, 0.2)"
+                    : hasTasksOrHabits
+                    ? "0 0 10px -3px rgba(124, 92, 252, 0.25)"
                     : "none",
                 }}
               >
@@ -571,7 +693,7 @@ export function StreakCalendar({
                   <span
                     className="text-[10px] font-bold leading-none"
                     style={{
-                      color: isToday ? userColor : isActive ? "#ffffff" : "#666670",
+                      color: isToday ? userColor : (hasTasksOrHabits || isActive) ? "#ffffff" : "#666670",
                     }}
                   >
                     {cell.dayNum}
@@ -584,20 +706,34 @@ export function StreakCalendar({
                   )}
                 </div>
 
-                {/* Fire or Snowflake Symbol */}
-                {isFrozen ? (
-                  <Snowflake className="w-3.5 h-3.5 text-cyan-400 shrink-0 mb-0.5" />
-                ) : isActive ? (
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                    className="shrink-0"
-                  >
-                    <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400 drop-shadow-[0_0_6px_rgba(245,197,24,0.6)]" />
-                  </motion.div>
-                ) : (
-                  <div className="w-1.5 h-1.5 rounded-full bg-white/5 mb-0.5" />
-                )}
+                {/* Combined Tasks & Habits Visual Badges */}
+                <div className="w-full flex items-center justify-center gap-0.5 my-auto">
+                  {tasksDone > 0 && (
+                    <span
+                      className="text-[8px] font-black px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      title={`${tasksDone} tasks done`}
+                    >
+                      ✓{tasksDone}
+                    </span>
+                  )}
+                  {habitsDone > 0 && (
+                    <span
+                      className="text-[8px] font-black px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                      title={`${habitsDone} habits done`}
+                    >
+                      ⚡{habitsDone}
+                    </span>
+                  )}
+                  {!hasTasksOrHabits && (
+                    isFrozen ? (
+                      <Snowflake className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    ) : isActive ? (
+                      <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                    ) : (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white/5" />
+                    )
+                  )}
+                </div>
               </motion.button>
             );
           })}
@@ -611,16 +747,41 @@ export function StreakCalendar({
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-3.5 rounded-2xl bg-black/70 border border-amber-500/40 space-y-2.5 text-xs overflow-hidden"
+            className="p-3.5 rounded-2xl bg-black/80 border border-amber-500/40 space-y-3 text-xs overflow-hidden"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-              <span className="font-bold text-amber-400 flex items-center gap-1.5">
-                <CalendarIcon className="w-3.5 h-3.5" /> {selectedDayDetail.dateStr}
-              </span>
+            {/* Header with Day Navigator */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => navigateDetailDay(-1)}
+                  className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Previous Day"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-bold text-amber-400 flex items-center gap-1.5 text-xs">
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                  {new Date(selectedDayDetail.dateStr + "T12:00:00").toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => navigateDetailDay(1)}
+                  className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white transition-colors"
+                  title="Next Day"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setSelectedDayDetail(null)}
-                className="text-[10px] text-gray-400 hover:text-white"
+                className="text-[10px] text-gray-400 hover:text-white px-2 py-1 rounded-lg bg-white/5 transition-colors"
               >
                 Close
               </button>
@@ -682,24 +843,32 @@ export function StreakCalendar({
               )}
             </div>
 
-            {/* Itemized Tasks for this Day */}
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                <CheckSquare className="w-3 h-3 text-emerald-400" />
-                Tasks on this Day ({selectedDayDetail.detail.dayTasks.length})
-              </p>
+            {/* 1. TASKS SECTION FOR THIS DAY */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <CheckSquare className="w-3 h-3 text-emerald-400" />
+                  Tasks on this Date ({selectedDayDetail.detail.dayTasks.length})
+                </p>
+              </div>
+
+              {/* Tasks List */}
               {selectedDayDetail.detail.dayTasks.length === 0 ? (
-                <p className="text-[11px] text-gray-500 italic py-1">No tasks recorded for this date.</p>
+                <p className="text-[11px] text-gray-500 italic py-0.5">No tasks recorded for this date.</p>
               ) : (
                 <div className="space-y-1">
                   {selectedDayDetail.detail.dayTasks.map((t) => (
                     <div
                       key={t.id}
-                      className="p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between gap-2"
+                      className="p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between gap-2 hover:bg-white/[0.05] transition-colors"
                     >
-                      <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTask(t)}
+                        className="flex items-center gap-2 min-w-0 text-left flex-1"
+                      >
                         <div
-                          className="w-4 h-4 rounded-md flex items-center justify-center shrink-0"
+                          className="w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-colors"
                           style={{
                             background: t.is_done ? "#22c55e" : "rgba(255, 255, 255, 0.1)",
                             border: `1px solid ${t.is_done ? "#22c55e" : "rgba(255, 255, 255, 0.2)"}`,
@@ -716,7 +885,7 @@ export function StreakCalendar({
                         >
                           {t.title}
                         </span>
-                      </div>
+                      </button>
                       {t.due_time && (
                         <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded shrink-0">
                           {t.due_time}
@@ -726,41 +895,101 @@ export function StreakCalendar({
                   ))}
                 </div>
               )}
+
+              {/* Inline Quick Add Task for this Day */}
+              <form onSubmit={handleAddDayTask} className="flex gap-1.5 pt-1">
+                <input
+                  type="text"
+                  value={newDayTaskTitle}
+                  onChange={(e) => setNewDayTaskTitle(e.target.value)}
+                  placeholder={`+ Add task for ${selectedDayDetail.dateStr}...`}
+                  className="input-field py-1.5 text-xs flex-1"
+                />
+                <button
+                  type="submit"
+                  disabled={addingTask || !newDayTaskTitle.trim()}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-xs font-bold transition-all disabled:opacity-30 shrink-0"
+                >
+                  Add
+                </button>
+              </form>
             </div>
 
-            {/* Itemized Habit Routines Done for this Day */}
-            <div className="space-y-1.5 pt-1 border-t border-white/5">
+            {/* 2. HABIT ROUTINES SECTION FOR THIS DAY */}
+            <div className="space-y-2 pt-2 border-t border-white/5">
               <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                 <Repeat2 className="w-3 h-3 text-purple-400" />
-                Habit Routines Completed ({selectedDayDetail.detail.dayRoutines.length})
+                Habit Routines on this Date
               </p>
-              {selectedDayDetail.detail.dayRoutines.length === 0 ? (
-                <p className="text-[11px] text-gray-500 italic py-1">No habit routines logged for this date.</p>
-              ) : (
-                <div className="space-y-1">
-                  {selectedDayDetail.detail.dayRoutines.map(({ routine, log }) => (
-                    <div
-                      key={log.id}
-                      className="p-2 rounded-xl bg-purple-500/[0.06] border border-purple-500/20 flex items-center justify-between gap-2"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base shrink-0">{routine.emoji || "⚡"}</span>
-                        <span className="text-xs font-semibold text-white truncate">{routine.title}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {routine.reminder_time && (
-                          <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
-                            {routine.reminder_time}
+
+              <div className="space-y-1">
+                {safeRoutines.length === 0 ? (
+                  <p className="text-[11px] text-gray-500 italic py-0.5">No habit routines created yet.</p>
+                ) : (
+                  safeRoutines.map((routine) => {
+                    const isDone = safeRoutineLogs.some(
+                      (l) =>
+                        l.routine_id === routine.id &&
+                        l.user_id === selectedUser?.id &&
+                        l.log_date === selectedDayDetail.dateStr
+                    );
+
+                    return (
+                      <div
+                        key={routine.id}
+                        className="p-2 rounded-xl border flex items-center justify-between gap-2 transition-all"
+                        style={{
+                          background: isDone ? "rgba(124, 92, 252, 0.12)" : "rgba(255, 255, 255, 0.02)",
+                          borderColor: isDone ? "rgba(124, 92, 252, 0.35)" : "rgba(255, 255, 255, 0.06)",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRoutine(routine.id, selectedDayDetail.dateStr)}
+                          className="flex items-center gap-2 min-w-0 text-left flex-1"
+                        >
+                          <div
+                            className="w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-colors"
+                            style={{
+                              background: isDone ? "#7c5cfc" : "rgba(255, 255, 255, 0.1)",
+                              border: `1px solid ${isDone ? "#7c5cfc" : "rgba(255, 255, 255, 0.2)"}`,
+                            }}
+                          >
+                            {isDone && <Check className="w-3 h-3 text-white stroke-[3]" />}
+                          </div>
+                          <span className="text-base shrink-0">{routine.emoji || "⚡"}</span>
+                          <span
+                            className="text-xs font-semibold truncate"
+                            style={{
+                              color: isDone ? "#ffffff" : "#9999aa",
+                              textDecoration: isDone ? "none" : "none",
+                            }}
+                          >
+                            {routine.title}
                           </span>
-                        )}
-                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                          +10 XP
-                        </span>
+                        </button>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {routine.reminder_time && (
+                            <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                              {routine.reminder_time}
+                            </span>
+                          )}
+                          <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded transition-all"
+                            style={{
+                              background: isDone ? "rgba(34, 197, 94, 0.15)" : "rgba(255, 255, 255, 0.05)",
+                              color: isDone ? "#4ade80" : "#666",
+                            }}
+                          >
+                            +10 XP
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    );
+                  })
+                )}
+              </div>
             </div>
           </motion.div>
         )}

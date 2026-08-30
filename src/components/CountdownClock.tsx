@@ -38,23 +38,16 @@ function Digit({ value, label, highlight }: { value: string; label: string; high
         }}
       >
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={value}
-              initial={{ y: "-40%", opacity: 0 }}
-              animate={{ y: "0%", opacity: 1 }}
-              exit={{ y: "40%", opacity: 0 }}
-              transition={{ duration: 0.12, ease: "easeOut" }}
-              className="font-black tabular-nums"
-              style={{
-                fontSize: "clamp(18px, 6vw, 28px)",
-                color: highlight ? "#a78bfa" : "#ffffff",
-                lineHeight: 1,
-              }}
-            >
-              {value}
-            </motion.span>
-          </AnimatePresence>
+          <span
+            className="font-black tabular-nums transition-colors"
+            style={{
+              fontSize: "clamp(18px, 6vw, 28px)",
+              color: highlight ? "#a78bfa" : "#ffffff",
+              lineHeight: 1,
+            }}
+          >
+            {value}
+          </span>
         </div>
       </div>
       <span className="mt-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: "#777780" }}>

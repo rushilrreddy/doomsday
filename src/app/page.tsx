@@ -36,7 +36,8 @@ import { RecordsLeaderboard } from "@/components/RecordsLeaderboard";
 import { CrewRankHistory } from "@/components/CrewRankHistory";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
 import { HourlyTracker } from "@/components/HourlyTracker";
-import { Loader2, CheckSquare, Repeat2, Clock, Shield, LogOut, ClipboardCheck } from "lucide-react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { Loader2, CheckSquare, Repeat2, Clock, Calendar as CalendarIcon, Shield, LogOut, ClipboardCheck } from "lucide-react";
 
 const PAGE_VARIANTS = {
   initial: { opacity: 0, y: 10 },
@@ -48,7 +49,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("countdown");
-  const [executionSubTab, setExecutionSubTab] = useState<"tasks" | "routines" | "hourly">("tasks");
+  const [executionSubTab, setExecutionSubTab] = useState<"tasks" | "routines" | "calendar" | "hourly">("tasks");
   const [showAdmin, setShowAdmin] = useState(false);
 
   // Core data
@@ -91,33 +92,33 @@ export default function Home() {
         supabase.from("notes").select("*").order("created_at", { ascending: false }),
         supabase.from("streaks").select("*"),
         supabase.from("activity_feed").select("*").order("created_at", { ascending: false }).limit(60),
-        supabase.from("daily_checkins").select("*").order("checkin_date", { ascending: false }).limit(90),
+        supabase.from("daily_checkins").select("*").order("checkin_date", { ascending: false }).limit(365),
         supabase.from("routines").select("*").order("created_at"),
-        supabase.from("routine_logs").select("*").order("log_date", { ascending: false }).limit(300),
-        supabase.from("hourly_logs").select("*").order("log_date", { ascending: false }).limit(400),
-        supabase.from("body_weight_logs").select("*").order("log_date", { ascending: false }).limit(90),
-        supabase.from("study_logs").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("routine_logs").select("*").order("log_date", { ascending: false }).limit(1500),
+        supabase.from("hourly_logs").select("*").order("log_date", { ascending: false }).limit(1500),
+        supabase.from("body_weight_logs").select("*").order("log_date", { ascending: false }).limit(365),
+        supabase.from("study_logs").select("*").order("created_at", { ascending: false }).limit(1000),
         supabase.from("feed_reactions").select("*"),
         supabase.from("challenges").select("*").order("created_at", { ascending: false }),
         supabase.from("important_events").select("*").order("event_date", { ascending: true }),
       ]);
-      if (u.data)  setUsers(u.data as User[]);
-      if (g.data)  setGoals(g.data as Goal[]);
-      if (t.data)  setTasks(t.data as Task[]);
-      if (n.data)  setNotes(n.data as Note[]);
-      if (s.data)  setStreaks(s.data as Streak[]);
-      if (f.data)  setFeed(f.data as ActivityFeedItem[]);
-      if (ci.data) setCheckins(ci.data as DailyCheckin[]);
-      if (r.data)  setRoutines(r.data as Routine[]);
-      if (rl.data) setRoutineLogs(rl.data as RoutineLog[]);
-      if (hl.data) setHourlyLogs(hl.data as HourlyLog[]);
-      if (wl.data) setWeightLogs(wl.data as BodyWeightLog[]);
-      if (sl.data) setStudyLogs(sl.data as StudyLog[]);
-      if (rx.data) setReactions(rx.data as FeedReaction[]);
-      if (ch.data) setChallenges(ch.data as Challenge[]);
-      if (ev.data) setEvents(ev.data as ImportantEvent[]);
+      if (u && u.data)   setUsers(u.data as User[]);
+      if (g && g.data)   setGoals(g.data as Goal[]);
+      if (t && t.data)   setTasks(t.data as Task[]);
+      if (n && n.data)   setNotes(n.data as Note[]);
+      if (s && s.data)   setStreaks(s.data as Streak[]);
+      if (f && f.data)   setFeed(f.data as ActivityFeedItem[]);
+      if (ci && ci.data) setCheckins(ci.data as DailyCheckin[]);
+      if (r && r.data)   setRoutines(r.data as Routine[]);
+      if (rl && rl.data) setRoutineLogs(rl.data as RoutineLog[]);
+      if (hl && hl.data) setHourlyLogs(hl.data as HourlyLog[]);
+      if (wl && wl.data) setWeightLogs(wl.data as BodyWeightLog[]);
+      if (sl && sl.data) setStudyLogs(sl.data as StudyLog[]);
+      if (rx && rx.data) setReactions(rx.data as FeedReaction[]);
+      if (ch && ch.data) setChallenges(ch.data as Challenge[]);
+      if (ev && ev.data) setEvents(ev.data as ImportantEvent[]);
     } catch (err) {
-      console.error(err);
+      console.error("loadData error:", err);
     }
   }, []);
 
@@ -133,10 +134,18 @@ export default function Home() {
     ];
     const ch = supabase.channel("page-refresh");
     tables.forEach((table) => {
-      ch.on("postgres_changes", { event: "*", schema: "public", table }, () => loadData());
+      ch.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        loadData().catch((e) => console.error("Realtime loadData error:", e));
+      });
     });
-    ch.subscribe();
-    return () => { supabase.removeChannel(ch); };
+    ch.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        // Connected
+      }
+    });
+    return () => {
+      try { supabase.removeChannel(ch); } catch { /* ignore */ }
+    };
   }, [currentUser, loadData]);
 
   const handleLogout = async () => {
@@ -181,7 +190,8 @@ export default function Home() {
       />
 
       <main className="max-w-md mx-auto px-4 pt-3 pb-safe">
-        <AnimatePresence mode="wait">
+        <ErrorBoundary fallbackTitle="Application section recovery">
+          <AnimatePresence mode="wait">
 
           {/* ── 1. HOME TAB (Hero Countdown, Level, Summary & Live Feed) ── */}
           {activeTab === "countdown" && (
@@ -265,7 +275,7 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 3. EXECUTION TAB (Tasks, Habit Routines, Hourly Audit) ── */}
+          {/* ── 3. EXECUTION TAB (Tasks, Habits, Combined Calendar, Hourly Audit) ── */}
           {activeTab === "tasks" && (
             <motion.div
               key="tasks"
@@ -276,12 +286,12 @@ export default function Home() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {/* Sub-tab segmented switch (3 tabs) */}
-              <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10 gap-1">
+              {/* Sub-tab segmented switch (4 tabs) */}
+              <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10 gap-1 overflow-x-auto">
                 <button
                   type="button"
                   onClick={() => setExecutionSubTab("tasks")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 min-w-[90px] flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
                   style={{
                     background: executionSubTab === "tasks" ? "rgba(255, 255, 255, 0.12)" : "transparent",
                     color: executionSubTab === "tasks" ? "#ffffff" : "#777",
@@ -293,7 +303,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setExecutionSubTab("routines")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 min-w-[95px] flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
                   style={{
                     background: executionSubTab === "routines" ? "rgba(255, 255, 255, 0.12)" : "transparent",
                     color: executionSubTab === "routines" ? "#ffffff" : "#777",
@@ -304,8 +314,21 @@ export default function Home() {
                 </button>
                 <button
                   type="button"
+                  onClick={() => setExecutionSubTab("calendar")}
+                  className="flex-1 min-w-[105px] flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: executionSubTab === "calendar" ? "rgba(245, 197, 24, 0.25)" : "transparent",
+                    color: executionSubTab === "calendar" ? "#f5c518" : "#777",
+                    border: executionSubTab === "calendar" ? "1px solid rgba(245, 197, 24, 0.4)" : "1px solid transparent",
+                  }}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5" />
+                  Calendar View
+                </button>
+                <button
+                  type="button"
                   onClick={() => setExecutionSubTab("hourly")}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 min-w-[100px] flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
                   style={{
                     background: executionSubTab === "hourly" ? "rgba(124, 92, 252, 0.25)" : "transparent",
                     color: executionSubTab === "hourly" ? "#a78bfa" : "#777",
@@ -313,7 +336,7 @@ export default function Home() {
                   }}
                 >
                   <Clock className="w-3.5 h-3.5" />
-                  Hourly Tracker
+                  Hourly Audit
                 </button>
               </div>
 
@@ -333,6 +356,20 @@ export default function Home() {
                   currentUser={currentUser}
                   activeGoal={activeGoal}
                   onRefresh={loadData}
+                />
+              ) : executionSubTab === "calendar" ? (
+                <StreakCalendar
+                  users={users}
+                  tasks={tasks}
+                  routines={routines}
+                  routineLogs={routineLogs}
+                  checkins={checkins}
+                  studyLogs={studyLogs}
+                  weightLogs={weightLogs}
+                  streaks={streaks}
+                  events={events}
+                  currentUser={currentUser}
+                  onRefreshEvents={loadData}
                 />
               ) : (
                 <HourlyTracker
@@ -510,6 +547,7 @@ export default function Home() {
           )}
 
         </AnimatePresence>
+        </ErrorBoundary>
       </main>
 
       {/* Admin Panel Modal for Rushil */}

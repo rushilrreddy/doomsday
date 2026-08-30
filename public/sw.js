@@ -1,16 +1,19 @@
-const CACHE_NAME = 'crew-v3';
+const CACHE_NAME = 'crew-v4';
 const STATIC_ASSETS = [
-  '/',
   '/manifest.json',
   '/favicon.ico',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
 
-// ── Install: cache static shell ──────────────────────────────────────────────
+// ── Install: Cache basic static icons only ────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(STATIC_ASSETS).catch((err) => {
+        console.warn('SW asset pre-cache skipped', err);
+      });
+    })
   );
   self.skipWaiting();
 });
@@ -25,47 +28,29 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// ── Fetch: stale-while-revalidate for Next.js static, network-first for pages ─
+// ── Fetch: Network-first for everything, never corrupt Next.js HTML or live chunks
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Skip non-GET, chrome-extension, and supabase/api calls
+  // Skip non-GET, API calls, Supabase websocket/REST, and extensions
   if (request.method !== 'GET') return;
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/data/')) return;
 
-  // Next.js static chunks — cache first (they're content-hashed)
-  if (url.pathname.startsWith('/_next/static/')) {
+  // For static icons / manifest: try cache then network
+  if (url.pathname.startsWith('/icons/') || url.pathname === '/manifest.json' || url.pathname === '/favicon.ico') {
     event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(request);
-        if (cached) return cached;
-        const fresh = await fetch(request);
-        cache.put(request, fresh.clone());
-        return fresh;
-      })
+      caches.match(request).then((cached) => cached || fetch(request))
     );
     return;
   }
 
-  // HTML pages — network first, fall back to cached shell
-  if (request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const clone = res.clone();
-          caches.open(CACHE_NAME).then((c) => c.put(request, clone));
-          return res;
-        })
-        .catch(() => caches.match('/') )
-    );
-    return;
-  }
-
-  // Everything else — network first, cache fallback
+  // For all page HTML and scripts: ALWAYS fetch from network
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request).catch(() => {
+      return caches.match(request);
+    })
   );
 });
 
@@ -74,9 +59,19 @@ self.addEventListener('push', (event) => {
   if (!event.data) return;
 
   let data = {};
-  try { data = event.data.json(); } catch { data = { title: 'DOOMSDAY', body: event.data.text() }; }
+  try {
+    data = event.data.json();
+  } catch {
+    data = { title: 'DOOMSDAY', body: event.data.text() };
+  }
 
-  const { title = 'DOOMSDAY', body = '', icon = '/icons/icon-192.png', badge = '/icons/icon-192.png', url = '/' } = data;
+  const {
+    title = 'DOOMSDAY',
+    body = '',
+    icon = '/icons/icon-192.png',
+    badge = '/icons/icon-192.png',
+    url = '/',
+  } = data;
 
   event.waitUntil(
     self.registration.showNotification(title, {
