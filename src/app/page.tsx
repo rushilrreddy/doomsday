@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog, FeedReaction, Challenge, ImportantEvent } from "@/lib/types";
+import { User, Goal, Task, Note, Streak, ActivityFeedItem, DailyCheckin, Routine, RoutineLog, BodyWeightLog, StudyLog, FeedReaction, Challenge, ImportantEvent, HourlyLog } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 import { Navigation, TabType } from "@/components/Navigation";
 import { GoalSection } from "@/components/GoalSection";
@@ -35,7 +35,8 @@ import { XPLevelCard, calculateUserXP } from "@/components/XPLevelCard";
 import { RecordsLeaderboard } from "@/components/RecordsLeaderboard";
 import { CrewRankHistory } from "@/components/CrewRankHistory";
 import { AnalyticsDashboard } from "@/components/AnalyticsDashboard";
-import { Loader2, CheckSquare, Repeat2, Shield, LogOut, ClipboardCheck } from "lucide-react";
+import { HourlyTracker } from "@/components/HourlyTracker";
+import { Loader2, CheckSquare, Repeat2, Clock, Shield, LogOut, ClipboardCheck } from "lucide-react";
 
 const PAGE_VARIANTS = {
   initial: { opacity: 0, y: 10 },
@@ -47,7 +48,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>("countdown");
-  const [executionSubTab, setExecutionSubTab] = useState<"tasks" | "routines">("tasks");
+  const [executionSubTab, setExecutionSubTab] = useState<"tasks" | "routines" | "hourly">("tasks");
   const [showAdmin, setShowAdmin] = useState(false);
 
   // Core data
@@ -62,6 +63,7 @@ export default function Home() {
   // Feature data
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineLogs, setRoutineLogs] = useState<RoutineLog[]>([]);
+  const [hourlyLogs, setHourlyLogs] = useState<HourlyLog[]>([]);
   const [weightLogs, setWeightLogs] = useState<BodyWeightLog[]>([]);
   const [studyLogs, setStudyLogs] = useState<StudyLog[]>([]);
   const [reactions, setReactions] = useState<FeedReaction[]>([]);
@@ -82,7 +84,7 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     try {
-      const [u, g, t, n, s, f, ci, r, rl, wl, sl, rx, ch, ev] = await Promise.all([
+      const [u, g, t, n, s, f, ci, r, rl, hl, wl, sl, rx, ch, ev] = await Promise.all([
         supabase.from("users").select("id, username, role, status, created_at"),
         supabase.from("goals").select("*").order("created_at", { ascending: false }),
         supabase.from("tasks").select("*").order("sort_order"),
@@ -92,6 +94,7 @@ export default function Home() {
         supabase.from("daily_checkins").select("*").order("checkin_date", { ascending: false }).limit(90),
         supabase.from("routines").select("*").order("created_at"),
         supabase.from("routine_logs").select("*").order("log_date", { ascending: false }).limit(300),
+        supabase.from("hourly_logs").select("*").order("log_date", { ascending: false }).limit(400),
         supabase.from("body_weight_logs").select("*").order("log_date", { ascending: false }).limit(90),
         supabase.from("study_logs").select("*").order("created_at", { ascending: false }).limit(200),
         supabase.from("feed_reactions").select("*"),
@@ -107,6 +110,7 @@ export default function Home() {
       if (ci.data) setCheckins(ci.data as DailyCheckin[]);
       if (r.data)  setRoutines(r.data as Routine[]);
       if (rl.data) setRoutineLogs(rl.data as RoutineLog[]);
+      if (hl.data) setHourlyLogs(hl.data as HourlyLog[]);
       if (wl.data) setWeightLogs(wl.data as BodyWeightLog[]);
       if (sl.data) setStudyLogs(sl.data as StudyLog[]);
       if (rx.data) setReactions(rx.data as FeedReaction[]);
@@ -124,7 +128,7 @@ export default function Home() {
     if (!currentUser) return;
     const tables = [
       "users", "tasks", "activity_feed", "streaks", "goals", "notes",
-      "daily_checkins", "routines", "routine_logs", "body_weight_logs",
+      "daily_checkins", "routines", "routine_logs", "hourly_logs", "body_weight_logs",
       "study_logs", "feed_reactions", "challenges", "streak_freeze_logs", "important_events"
     ];
     const ch = supabase.channel("page-refresh");
@@ -142,8 +146,8 @@ export default function Home() {
 
   const activeGoal = goals.find((g) => g.status === "active") || null;
   const userXP = useMemo(
-    () => (currentUser ? calculateUserXP(currentUser.id, tasks, studyLogs, streaks, goals, weightLogs) : null),
-    [currentUser, tasks, studyLogs, streaks, goals, weightLogs]
+    () => (currentUser ? calculateUserXP(currentUser.id, tasks, studyLogs, streaks, goals, weightLogs, routineLogs) : null),
+    [currentUser, tasks, studyLogs, streaks, goals, weightLogs, routineLogs]
   );
 
   const todayStr = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -207,6 +211,7 @@ export default function Home() {
                 streaks={streaks}
                 goals={goals}
                 weightLogs={weightLogs}
+                routineLogs={routineLogs}
                 onRefresh={loadData}
               />
 
@@ -260,7 +265,7 @@ export default function Home() {
             </motion.div>
           )}
 
-          {/* ── 3. EXECUTION TAB (Tasks & Habit Routines) ── */}
+          {/* ── 3. EXECUTION TAB (Tasks, Habit Routines, Hourly Audit) ── */}
           {activeTab === "tasks" && (
             <motion.div
               key="tasks"
@@ -271,8 +276,8 @@ export default function Home() {
               transition={{ duration: 0.2 }}
               className="space-y-4"
             >
-              {/* Sub-tab segmented switch */}
-              <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10">
+              {/* Sub-tab segmented switch (3 tabs) */}
+              <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/10 gap-1">
                 <button
                   type="button"
                   onClick={() => setExecutionSubTab("tasks")}
@@ -295,7 +300,20 @@ export default function Home() {
                   }}
                 >
                   <Repeat2 className="w-3.5 h-3.5" />
-                  Habit Routines
+                  Habits (+10 XP)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExecutionSubTab("hourly")}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all"
+                  style={{
+                    background: executionSubTab === "hourly" ? "rgba(124, 92, 252, 0.25)" : "transparent",
+                    color: executionSubTab === "hourly" ? "#a78bfa" : "#777",
+                    border: executionSubTab === "hourly" ? "1px solid rgba(124, 92, 252, 0.4)" : "1px solid transparent",
+                  }}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  Hourly Tracker
                 </button>
               </div>
 
@@ -307,13 +325,24 @@ export default function Home() {
                   currentUser={currentUser}
                   onRefresh={loadData}
                 />
-              ) : (
+              ) : executionSubTab === "routines" ? (
                 <RoutineManager
                   routines={routines}
                   routineLogs={routineLogs}
                   users={users}
                   currentUser={currentUser}
                   activeGoal={activeGoal}
+                  onRefresh={loadData}
+                />
+              ) : (
+                <HourlyTracker
+                  logs={hourlyLogs}
+                  users={users}
+                  currentUser={currentUser}
+                  tasks={tasks}
+                  studyLogs={studyLogs}
+                  routines={routines}
+                  routineLogs={routineLogs}
                   onRefresh={loadData}
                 />
               )}
@@ -363,6 +392,7 @@ export default function Home() {
               <StreakCalendar
                 users={users}
                 tasks={tasks}
+                routines={routines}
                 routineLogs={routineLogs}
                 checkins={checkins}
                 studyLogs={studyLogs}
@@ -389,6 +419,8 @@ export default function Home() {
                 studyLogs={studyLogs}
                 streaks={streaks}
                 goals={goals}
+                weightLogs={weightLogs}
+                routineLogs={routineLogs}
               />
               <AnalyticsDashboard
                 currentUser={currentUser}

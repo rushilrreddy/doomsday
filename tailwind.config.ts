@@ -26,7 +26,7 @@ const config: Config = {
         },
         crew: {
           rushil: "#22c55e",
-          alan: "#7c5cfc",
+          pruthvi: "#7c5cfc",
           kevin: "#f5c518",
         },
         accent: {

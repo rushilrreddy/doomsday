@@ -19,7 +19,7 @@ export async function GET() {
 
     const defaultUsers = [
       { username: "rushil", role: "leader" },
-      { username: "alan", role: "member" },
+      { username: "pruthvi", role: "member" },
       { username: "kevin", role: "member" },
     ];
 

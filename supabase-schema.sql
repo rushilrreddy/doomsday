@@ -98,7 +98,7 @@ CREATE POLICY "Anon activity access" ON public.activity_feed FOR ALL USING (true
 -- ==========================================
 INSERT INTO public.users (username, password_hash, role, status) VALUES
   ('rushil', '$2a$10$Uu5Y9Wc4EMLeOdl99pFUoO5I8gFQKO6cPOvMePIS4HlZ0sNsbvnU.', 'leader', 'active'),
-  ('alan', '$2a$10$Uu5Y9Wc4EMLeOdl99pFUoO5I8gFQKO6cPOvMePIS4HlZ0sNsbvnU.', 'member', 'active'),
+  ('pruthvi', '$2a$10$Uu5Y9Wc4EMLeOdl99pFUoO5I8gFQKO6cPOvMePIS4HlZ0sNsbvnU.', 'member', 'active'),
   ('kevin', '$2a$10$Uu5Y9Wc4EMLeOdl99pFUoO5I8gFQKO6cPOvMePIS4HlZ0sNsbvnU.', 'member', 'active')
 ON CONFLICT (username) DO NOTHING;
 

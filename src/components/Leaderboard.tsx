@@ -13,11 +13,11 @@ interface LeaderboardProps {
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 
 export function Leaderboard({ users, tasks, streaks }: LeaderboardProps) {
   const todayStr = new Date().toISOString().split("T")[0];

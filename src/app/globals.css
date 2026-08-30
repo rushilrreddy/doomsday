@@ -19,7 +19,7 @@
   --accent-green: #22c55e;
   --accent-red: #ef4444;
   --rushil: #22c55e;
-  --alan: #7c5cfc;
+  --pruthvi: #7c5cfc;
   --kevin: #f5c518;
 }
 
@@ -163,7 +163,7 @@ body {
 }
 
 .rushil-dot { background: var(--rushil); }
-.alan-dot { background: var(--alan); }
+.pruthvi-dot { background: var(--pruthvi); }
 .kevin-dot { background: var(--kevin); }
 
 /* ===== SCROLLBAR ===== */

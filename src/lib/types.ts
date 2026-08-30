@@ -176,3 +176,26 @@ export interface ImportantEvent {
   description?: string | null;
   created_at: string;
 }
+
+export type HourlyActivityType =
+  | 'coding'
+  | 'study'
+  | 'gym'
+  | 'work'
+  | 'routine'
+  | 'meal_break'
+  | 'sleep'
+  | 'wasted'
+  | 'other';
+
+export interface HourlyLog {
+  id: string;
+  user_id: string;
+  log_date: string;   // "YYYY-MM-DD"
+  hour_block: number; // 0 to 23
+  activity_type: HourlyActivityType;
+  title?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+

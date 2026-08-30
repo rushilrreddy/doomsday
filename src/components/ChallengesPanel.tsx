@@ -8,7 +8,7 @@ import { Swords, Plus, Trophy, X, Clock, CheckSquare, Code2, Trash2 } from "luci
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan:   "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin:  "#f5c518",
 };
 

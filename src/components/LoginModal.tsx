@@ -10,7 +10,7 @@ interface LoginModalProps {
 
 const CREW = [
   { name: "rushil", color: "#22c55e", label: "Leader" },
-  { name: "alan",   color: "#7c5cfc", label: "Member" },
+  { name: "pruthvi", color: "#7c5cfc", label: "Member" },
   { name: "kevin",  color: "#f5c518", label: "Member" },
 ];
 

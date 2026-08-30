@@ -8,7 +8,7 @@ import { CheckSquare, Plus, Share2, Trophy, Flame, Search, X, Trash2, Dumbbell, 
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
@@ -41,7 +41,7 @@ interface ActivityFeedProps {
   onReact: () => void;
 }
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 const EMOJIS = ["🔥", "👏", "💀", "😎"] as const;
 
 export function ActivityFeed({ items = [], users = [], reactions = [], currentUser, onReact }: ActivityFeedProps) {

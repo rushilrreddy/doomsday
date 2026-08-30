@@ -7,7 +7,7 @@ import { CalendarDays } from "lucide-react";
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan:   "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin:  "#f5c518",
 };
 
@@ -125,7 +125,7 @@ export function StudyHeatmap({ logs = [], users = [], currentUser }: StudyHeatma
 
       {/* User selector */}
       <div className="flex gap-2">
-        {users.filter((u) => ["rushil","alan","kevin"].includes(u.username.toLowerCase())).map((u) => {
+        {users.filter((u) => ["rushil","pruthvi","kevin"].includes(u.username.toLowerCase())).map((u) => {
           const uname = u.username.toLowerCase();
           const c     = USER_COLORS[uname] || "#666";
           const active = selectedUser === uname;

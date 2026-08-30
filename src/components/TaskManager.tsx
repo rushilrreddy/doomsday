@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform } from "framer-motion";
 import { Task, User } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { Plus, Trash2, Check, Clock, Calendar, ChevronDown, ChevronUp, User as UserIcon, Shield, Layers } from "lucide-react";
+import { Plus, Trash2, Check, Clock, Calendar, ChevronDown, ChevronUp, User as UserIcon, Shield, Layers, History, CalendarDays, CheckCircle2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { AllDoneCelebration } from "./AllDoneCelebration";
 
@@ -17,11 +17,11 @@ interface TaskManagerProps {
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 
 function SwipeableTask({
   task,
@@ -158,6 +158,12 @@ export function TaskManager({ tasks = [], users = [], currentUser, onRefresh }: 
   // Selected filter: "all" (for Rushil) or specific username
   const [selected, setSelected] = useState<string>(() => currentUser?.username?.toLowerCase() || "rushil");
   const [showGeneralTasks, setShowGeneralTasks] = useState(true);
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyDate, setHistoryDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split("T")[0];
+  });
 
   // Form states
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -187,6 +193,22 @@ export function TaskManager({ tasks = [], users = [], currentUser, onRefresh }: 
 
   const todayTasks = datedTasks.filter((t) => t.task_date === todayStr);
   const futureTasks = datedTasks.filter((t) => t.task_date && t.task_date > todayStr);
+
+  // Past tasks for the selected history date
+  const pastTasks = datedTasks.filter((t) => t.task_date === historyDate);
+  const donePast = pastTasks.filter((t) => t.is_done).length;
+  const pastPct = pastTasks.length > 0 ? Math.round((donePast / pastTasks.length) * 100) : 0;
+
+  // List of unique past dates that have tasks for quick jumping
+  const distinctPastDates = useMemo(() => {
+    const dates = new Set<string>();
+    datedTasks.forEach((t) => {
+      if (t.task_date && t.task_date < todayStr) {
+        dates.add(t.task_date);
+      }
+    });
+    return Array.from(dates).sort().reverse().slice(0, 7);
+  }, [datedTasks, todayStr]);
 
   // General tasks without dates
   const generalTasks = safeTasks.filter((t) => {
@@ -547,6 +569,122 @@ export function TaskManager({ tasks = [], users = [], currentUser, onRefresh }: 
                   );
                 })
               )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* PREVIOUS DAYS COMPLETED TASKS & HISTORY */}
+      <div className="card p-3.5 space-y-3" style={{ border: "1px solid rgba(124, 92, 252, 0.25)" }}>
+        <button
+          type="button"
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between text-xs font-bold text-white"
+        >
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-purple-400" />
+            <span>Past Tasks History by Day</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {showHistory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+          </div>
+        </button>
+
+        <AnimatePresence>
+          {showHistory && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="space-y-3 overflow-hidden pt-1"
+            >
+              {/* Date selection bar */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[11px] text-gray-400 font-semibold">Quick Jump:</span>
+                    {distinctPastDates.length > 0 ? (
+                      distinctPastDates.map((dateStr) => {
+                        const isSelected = historyDate === dateStr;
+                        const d = new Date(dateStr + "T12:00:00");
+                        const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        return (
+                          <button
+                            key={dateStr}
+                            type="button"
+                            onClick={() => setHistoryDate(dateStr)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-bold transition-all"
+                            style={{
+                              background: isSelected ? "#7c5cfc" : "rgba(255, 255, 255, 0.05)",
+                              color: isSelected ? "#ffffff" : "#999999",
+                              border: `1px solid ${isSelected ? "#7c5cfc" : "rgba(255, 255, 255, 0.1)"}`,
+                            }}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[10px] text-gray-500 italic">No past task records yet</span>
+                    )}
+                  </div>
+
+                  {/* Specific Date Picker */}
+                  <div className="flex items-center gap-1.5 bg-black/40 px-2.5 py-1 rounded-xl border border-white/10 shrink-0">
+                    <CalendarDays className="w-3.5 h-3.5 text-purple-400" />
+                    <input
+                      type="date"
+                      value={historyDate}
+                      max={todayStr}
+                      onChange={(e) => setHistoryDate(e.target.value)}
+                      className="bg-transparent text-[11px] text-white focus:outline-none cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                {/* Day Summary banner */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-purple-400" />
+                    <span className="font-bold text-white">
+                      {new Date(historyDate + "T12:00:00").toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-bold text-purple-300">
+                    <span>{donePast}/{pastTasks.length} Completed</span>
+                    {pastTasks.length > 0 && <span className="text-[10px] text-purple-400">({pastPct}%)</span>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tasks for the selected past date */}
+              <div className="space-y-2">
+                {pastTasks.length === 0 ? (
+                  <div className="p-4 text-center rounded-xl bg-white/[0.02] border border-white/5 text-xs text-gray-500">
+                    No tasks logged for {historyDate}.
+                  </div>
+                ) : (
+                  pastTasks.map((t) => {
+                    const owner = safeUsers.find((u) => u.id === t.user_id);
+                    const canManage = isLeader || t.user_id === currentUser.id;
+                    return (
+                      <SwipeableTask
+                        key={t.id}
+                        task={t}
+                        owner={isAllView ? owner : undefined}
+                        canManage={canManage}
+                        color={owner ? USER_COLORS[owner.username.toLowerCase()] || "#7c5cfc" : "#7c5cfc"}
+                        onToggle={handleToggle}
+                        onDelete={handleDelete}
+                      />
+                    );
+                  })
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

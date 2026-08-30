@@ -12,11 +12,11 @@ interface WeeklyProgressProps {
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 
 function getLast7Days(): { label: string; dateStr: string }[] {
   return Array.from({ length: 7 }, (_, i) => {

@@ -13,7 +13,7 @@ async function fixPasswords() {
   const { data, error } = await supabase
     .from("users")
     .update({ password_hash: passwordHash })
-    .in("username", ["rushil", "alan", "kevin"])
+    .in("username", ["rushil", "pruthvi", "kevin"])
     .select();
 
   if (error) {

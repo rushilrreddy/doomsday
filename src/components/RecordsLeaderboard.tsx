@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import { motion } from "framer-motion";
-import { User, Task, StudyLog, Streak, Goal } from "@/lib/types";
+import { User, Task, StudyLog, Streak, Goal, BodyWeightLog, RoutineLog } from "@/lib/types";
 import { calculateUserXP } from "./XPLevelCard";
 import { Flame, Trophy, Code2, Clock, CheckSquare, Zap, Crown } from "lucide-react";
 
@@ -12,11 +12,13 @@ interface RecordsLeaderboardProps {
   studyLogs: StudyLog[];
   streaks: Streak[];
   goals: Goal[];
+  weightLogs?: BodyWeightLog[];
+  routineLogs?: RoutineLog[];
 }
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan:   "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin:  "#f5c518",
 };
 
@@ -30,13 +32,23 @@ function safeFormatDate(dateStr?: string) {
   }
 }
 
-export function RecordsLeaderboard({ users = [], tasks = [], studyLogs = [], streaks = [], goals = [] }: RecordsLeaderboardProps) {
+export function RecordsLeaderboard({
+  users = [],
+  tasks = [],
+  studyLogs = [],
+  streaks = [],
+  goals = [],
+  weightLogs = [],
+  routineLogs = [],
+}: RecordsLeaderboardProps) {
   const records = useMemo(() => {
     const safeUsers = users || [];
     const safeTasks = tasks || [];
     const safeStudy = studyLogs || [];
     const safeStreaks = streaks || [];
     const safeGoals = goals || [];
+    const safeWeight = weightLogs || [];
+    const safeRoutines = routineLogs || [];
 
     // 1. Most DSA problems in a single day
     const dsaByDayUser: Record<string, { problems: number; userId: string; date: string }> = {};
@@ -74,7 +86,7 @@ export function RecordsLeaderboard({ users = [], tasks = [], studyLogs = [], str
     // 5. Total XP Leader
     const xpLeaders = safeUsers.map((u) => ({
       user: u,
-      xpData: calculateUserXP(u.id, safeTasks, safeStudy, safeStreaks, safeGoals),
+      xpData: calculateUserXP(u.id, safeTasks, safeStudy, safeStreaks, safeGoals, safeWeight, safeRoutines),
     })).sort((a, b) => (b?.xpData?.xp || 0) - (a?.xpData?.xp || 0))[0] || { user: safeUsers[0], xpData: { xp: 0, level: 1 } };
 
     return [

@@ -17,11 +17,11 @@ interface RoutineManagerProps {
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 
 const EMOJI_OPTIONS = [
   "⚡", "🏃", "💪", "📚", "🧘", "🥗", "💧", "😴", "🎯", "🔥",
@@ -113,6 +113,9 @@ function SwipeableRoutineItem({
                 {routine.reminder_time}
               </span>
             )}
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-md">
+              +10 XP
+            </span>
             {streak > 0 && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-400">
                 <Flame className="w-3 h-3" />

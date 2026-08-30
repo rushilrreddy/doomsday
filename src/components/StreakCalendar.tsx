@@ -2,13 +2,14 @@
 
 import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Task, RoutineLog, DailyCheckin, Streak, User, StudyLog, BodyWeightLog, ImportantEvent } from "@/lib/types";
+import { Task, Routine, RoutineLog, DailyCheckin, Streak, User, StudyLog, BodyWeightLog, ImportantEvent } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { Flame, Snowflake, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trophy, Dumbbell, BookOpen, CheckSquare, Sparkles, GraduationCap, Plus, Trash2, X, Clock, AlertTriangle } from "lucide-react";
+import { Flame, Snowflake, ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trophy, Dumbbell, BookOpen, CheckSquare, Sparkles, GraduationCap, Plus, Trash2, X, Clock, AlertTriangle, Check, Repeat2 } from "lucide-react";
 
 interface StreakCalendarProps {
   users: User[];
   tasks: Task[];
+  routines?: Routine[];
   routineLogs: RoutineLog[];
   checkins: DailyCheckin[];
   studyLogs?: StudyLog[];
@@ -21,11 +22,11 @@ interface StreakCalendarProps {
 
 const USER_COLORS: Record<string, string> = {
   rushil: "#22c55e",
-  alan: "#7c5cfc",
+  pruthvi: "#7c5cfc",
   kevin: "#f5c518",
 };
 
-const CREW = ["rushil", "alan", "kevin"];
+const CREW = ["rushil", "pruthvi", "kevin"];
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const EVENT_CATEGORIES = [
@@ -45,11 +46,14 @@ interface DayDetail {
   isFrozen: boolean;
   isActive: boolean;
   dayEvents: ImportantEvent[];
+  dayTasks: Task[];
+  dayRoutines: { routine: Routine; log: RoutineLog }[];
 }
 
 export function StreakCalendar({
   users = [],
   tasks = [],
+  routines = [],
   routineLogs = [],
   checkins = [],
   studyLogs = [],
@@ -73,7 +77,8 @@ export function StreakCalendar({
 
   const safeUsers = users || [];
   const safeTasks = tasks || [];
-  const safeRoutines = routineLogs || [];
+  const safeRoutines = routines || [];
+  const safeRoutineLogs = routineLogs || [];
   const safeCheckins = checkins || [];
   const safeStudy = studyLogs || [];
   const safeWeight = weightLogs || [];
@@ -122,22 +127,38 @@ export function StreakCalendar({
           isFrozen: false,
           isActive: false,
           dayEvents: [],
+          dayTasks: [],
+          dayRoutines: [],
         };
         map.set(date, existing);
       }
       return existing;
     };
 
-    safeTasks.filter((t) => t && t.user_id === uid && t.is_done && t.task_date).forEach((t) => {
+    safeTasks.filter((t) => t && t.user_id === uid && t.task_date).forEach((t) => {
       const d = getOrInit(t.task_date!);
-      d.tasksCount++;
-      d.isActive = true;
+      d.dayTasks.push(t);
+      if (t.is_done) {
+        d.tasksCount++;
+        d.isActive = true;
+      }
     });
 
-    safeRoutines.filter((l) => l && l.user_id === uid && l.log_date).forEach((l) => {
+    safeRoutineLogs.filter((l) => l && l.user_id === uid && l.log_date).forEach((l) => {
       const d = getOrInit(l.log_date);
       d.routineCount++;
       d.isActive = true;
+      const matchedRoutine = safeRoutines.find((r) => r.id === l.routine_id) || {
+        id: l.routine_id,
+        user_id: l.user_id,
+        goal_id: null,
+        title: "Habit Routine",
+        emoji: "⚡",
+        description: null,
+        is_public: true,
+        created_at: l.created_at,
+      };
+      d.dayRoutines.push({ routine: matchedRoutine, log: l });
     });
 
     safeCheckins.filter((c) => c && c.user_id === uid && c.checkin_date).forEach((c) => {
@@ -173,7 +194,7 @@ export function StreakCalendar({
     });
 
     return map;
-  }, [selectedUser, safeTasks, safeRoutines, safeCheckins, safeStudy, safeWeight, userStreak, safeEvents]);
+  }, [selectedUser, safeTasks, safeRoutines, safeRoutineLogs, safeCheckins, safeStudy, safeWeight, userStreak, safeEvents]);
 
   // Calendar Grid generation for current month
   const calendarDays = useMemo(() => {
@@ -627,35 +648,117 @@ export function StreakCalendar({
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-300">
+            {/* Summary badges */}
+            <div className="flex flex-wrap gap-2 text-[11px] text-gray-300 pb-2 border-b border-white/10">
               {selectedDayDetail.detail.tasksCount > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <CheckSquare className="w-3 h-3 text-emerald-400" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  <CheckSquare className="w-3 h-3" />
                   <span>{selectedDayDetail.detail.tasksCount} Tasks Done</span>
                 </div>
               )}
+              {selectedDayDetail.detail.routineCount > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                  <Sparkles className="w-3 h-3" />
+                  <span>{selectedDayDetail.detail.routineCount} Habits Done</span>
+                </div>
+              )}
               {selectedDayDetail.detail.studyMinutes > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <BookOpen className="w-3 h-3 text-indigo-400" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                  <BookOpen className="w-3 h-3" />
                   <span>{selectedDayDetail.detail.studyMinutes}m Study Time</span>
                 </div>
               )}
               {selectedDayDetail.detail.gymCount > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Dumbbell className="w-3 h-3 text-pink-400" />
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-pink-500/10 border border-pink-500/20 text-pink-400">
+                  <Dumbbell className="w-3 h-3" />
                   <span>Gym Check-in Done</span>
                 </div>
               )}
-              {selectedDayDetail.detail.routineCount > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-purple-400" />
-                  <span>{selectedDayDetail.detail.routineCount} Habits Done</span>
-                </div>
-              )}
               {selectedDayDetail.detail.isFrozen && (
-                <div className="flex items-center gap-1.5 text-cyan-400">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
                   <Snowflake className="w-3 h-3" />
                   <span>Streak Protected</span>
+                </div>
+              )}
+            </div>
+
+            {/* Itemized Tasks for this Day */}
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <CheckSquare className="w-3 h-3 text-emerald-400" />
+                Tasks on this Day ({selectedDayDetail.detail.dayTasks.length})
+              </p>
+              {selectedDayDetail.detail.dayTasks.length === 0 ? (
+                <p className="text-[11px] text-gray-500 italic py-1">No tasks recorded for this date.</p>
+              ) : (
+                <div className="space-y-1">
+                  {selectedDayDetail.detail.dayTasks.map((t) => (
+                    <div
+                      key={t.id}
+                      className="p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className="w-4 h-4 rounded-md flex items-center justify-center shrink-0"
+                          style={{
+                            background: t.is_done ? "#22c55e" : "rgba(255, 255, 255, 0.1)",
+                            border: `1px solid ${t.is_done ? "#22c55e" : "rgba(255, 255, 255, 0.2)"}`,
+                          }}
+                        >
+                          {t.is_done && <Check className="w-3 h-3 text-black stroke-[3]" />}
+                        </div>
+                        <span
+                          className="text-xs truncate font-medium"
+                          style={{
+                            color: t.is_done ? "#888899" : "#ffffff",
+                            textDecoration: t.is_done ? "line-through" : "none",
+                          }}
+                        >
+                          {t.title}
+                        </span>
+                      </div>
+                      {t.due_time && (
+                        <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded shrink-0">
+                          {t.due_time}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Itemized Habit Routines Done for this Day */}
+            <div className="space-y-1.5 pt-1 border-t border-white/5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                <Repeat2 className="w-3 h-3 text-purple-400" />
+                Habit Routines Completed ({selectedDayDetail.detail.dayRoutines.length})
+              </p>
+              {selectedDayDetail.detail.dayRoutines.length === 0 ? (
+                <p className="text-[11px] text-gray-500 italic py-1">No habit routines logged for this date.</p>
+              ) : (
+                <div className="space-y-1">
+                  {selectedDayDetail.detail.dayRoutines.map(({ routine, log }) => (
+                    <div
+                      key={log.id}
+                      className="p-2 rounded-xl bg-purple-500/[0.06] border border-purple-500/20 flex items-center justify-between gap-2"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base shrink-0">{routine.emoji || "⚡"}</span>
+                        <span className="text-xs font-semibold text-white truncate">{routine.title}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {routine.reminder_time && (
+                          <span className="text-[10px] text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
+                            {routine.reminder_time}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                          +10 XP
+                        </span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

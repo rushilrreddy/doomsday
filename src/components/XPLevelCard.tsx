@@ -2,9 +2,9 @@
 
 import React, { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { User, Task, StudyLog, Streak, Goal, BodyWeightLog } from "@/lib/types";
+import { User, Task, StudyLog, Streak, Goal, BodyWeightLog, RoutineLog } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
-import { Zap, ShieldAlert, Snowflake, Trophy, Sparkles, Check, Info, X, Calculator, HelpCircle, Dumbbell } from "lucide-react";
+import { Zap, ShieldAlert, Snowflake, Trophy, Sparkles, Check, Info, X, Calculator, HelpCircle, Dumbbell, Repeat2 } from "lucide-react";
 
 interface XPLevelCardProps {
   currentUser: User;
@@ -13,6 +13,7 @@ interface XPLevelCardProps {
   streaks: Streak[];
   goals: Goal[];
   weightLogs?: BodyWeightLog[];
+  routineLogs?: RoutineLog[];
   onRefresh: () => void;
 }
 
@@ -31,7 +32,8 @@ export function calculateUserXP(
   studyLogs: StudyLog[] = [],
   streaks: Streak[] = [],
   goals: Goal[] = [],
-  weightLogs: BodyWeightLog[] = []
+  weightLogs: BodyWeightLog[] = [],
+  routineLogs: RoutineLog[] = []
 ): {
   xp: number;
   level: number;
@@ -42,6 +44,8 @@ export function calculateUserXP(
   breakdown: {
     tasksCount: number;
     taskXP: number;
+    routinesCount: number;
+    routineXP: number;
     dsaCount: number;
     dsaXP: number;
     studyMins: number;
@@ -59,15 +63,20 @@ export function calculateUserXP(
   const safeStreaks = streaks || [];
   const safeGoals = goals || [];
   const safeGym = weightLogs || [];
+  const safeRoutines = routineLogs || [];
 
   const userTasks = safeTasks.filter((t) => t && t.user_id === userId && t.is_done);
   const userStudy = safeStudy.filter((l) => l && l.user_id === userId);
   const userStreak = safeStreaks.find((s) => s && s.user_id === userId);
   const userGoals = safeGoals.filter((g) => g && g.winner_id === userId && g.status === "achieved");
   const userGym = safeGym.filter((g) => g && g.user_id === userId);
+  const userRoutines = safeRoutines.filter((r) => r && r.user_id === userId);
 
   const tasksCount = userTasks.length;
   const taskXP = tasksCount * 10;
+
+  const routinesCount = userRoutines.length;
+  const routineXP = routinesCount * 10; // +10 XP per routine completion
 
   const dsaCount = userStudy.filter((l) => l.category === "dsa").reduce((acc, l) => acc + (l.problems_solved || 0), 0);
   const dsaXP = dsaCount * 15;
@@ -84,7 +93,7 @@ export function calculateUserXP(
   const goalsCount = userGoals.length;
   const goalXP = goalsCount * 250;
 
-  const totalXP = taskXP + dsaXP + studyXP + gymXP + goalXP + streakXP;
+  const totalXP = taskXP + routineXP + dsaXP + studyXP + gymXP + goalXP + streakXP;
 
   let level = 1;
   while (Math.floor(100 * Math.pow(level, 1.5)) <= totalXP) {
@@ -112,6 +121,8 @@ export function calculateUserXP(
     breakdown: {
       tasksCount,
       taskXP,
+      routinesCount,
+      routineXP,
       dsaCount,
       dsaXP,
       studyMins,
@@ -126,14 +137,14 @@ export function calculateUserXP(
   };
 }
 
-export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, weightLogs = [], onRefresh }: XPLevelCardProps) {
+export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, weightLogs = [], routineLogs = [], onRefresh }: XPLevelCardProps) {
   const [usingFreeze, setUsingFreeze] = useState(false);
   const [freezeSuccess, setFreezeSuccess] = useState(false);
   const [showFormulaModal, setShowFormulaModal] = useState(false);
 
   const stats = useMemo(
-    () => calculateUserXP(currentUser?.id || "", tasks, studyLogs, streaks, goals, weightLogs),
-    [currentUser?.id, tasks, studyLogs, streaks, goals, weightLogs]
+    () => calculateUserXP(currentUser?.id || "", tasks, studyLogs, streaks, goals, weightLogs, routineLogs),
+    [currentUser?.id, tasks, studyLogs, streaks, goals, weightLogs, routineLogs]
   );
 
   const myStreak = (streaks || []).find((s) => s && s.user_id === currentUser?.id);
@@ -364,6 +375,10 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
                   <span className="font-bold text-emerald-400">+10 XP</span>
                 </div>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
+                  <span className="text-gray-300">⚡ Habit Routine Completed</span>
+                  <span className="font-bold text-purple-400">+10 XP</span>
+                </div>
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
                   <span className="text-gray-300">💻 DSA Problem Solved</span>
                   <span className="font-bold text-sky-400">+15 XP</span>
                 </div>
@@ -381,7 +396,7 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
                 </div>
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5">
                   <span className="text-gray-300">🏆 Challenge Goal Won</span>
-                  <span className="font-bold text-purple-400">+250 XP</span>
+                  <span className="font-bold text-yellow-400">+250 XP</span>
                 </div>
               </div>
 
@@ -392,6 +407,10 @@ export function XPLevelCard({ currentUser, tasks, studyLogs, streaks, goals, wei
                   <div className="flex justify-between">
                     <span>{stats.breakdown.tasksCount} Tasks completed:</span>
                     <span className="font-semibold text-white">+{stats.breakdown.taskXP} XP</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>{stats.breakdown.routinesCount} Habits completed:</span>
+                    <span className="font-semibold text-white">+{stats.breakdown.routineXP} XP</span>
                   </div>
                   <div className="flex justify-between">
                     <span>{stats.breakdown.dsaCount} DSA problems:</span>
